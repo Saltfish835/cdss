@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>临床决策支持系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
+    <script src="/gojs/go.js"></script>
+    <script id="code">
+        function init() {
+            if (window.goSamples) goSamples();  // init for these samples -- you don't need to call this
+            var objGo = go.GraphObject.make;  // for conciseness in defining templates
+
+            myDiagram =
+                objGo(go.Diagram, "myDiagramDiv",  // must name or refer to the DIV HTML element
+                    {
+                        grid: objGo(go.Panel, "Grid",
+                            objGo(go.Shape, "LineH", { stroke: "lightgray", strokeWidth: 0.5 }),
+                            objGo(go.Shape, "LineH", { stroke: "gray", strokeWidth: 0.5, interval: 10 }),
+                            objGo(go.Shape, "LineV", { stroke: "lightgray", strokeWidth: 0.5 }),
+                            objGo(go.Shape, "LineV", { stroke: "gray", strokeWidth: 0.5, interval: 10 })
+                        ),
+                        allowDrop: true,  // must be true to accept drops from the Palette
+                        "draggingTool.dragsLink": true,
+                        "draggingTool.isGridSnapEnabled": true,
+                        "linkingTool.isUnconnectedLinkValid": true,
+                        "linkingTool.portGravity": 20,
+                        "relinkingTool.isUnconnectedLinkValid": true,
+                        "relinkingTool.portGravity": 20,
+                        "relinkingTool.fromHandleArchetype":
+                            objGo(go.Shape, "Diamond", { segmentIndex: 0, cursor: "pointer", desiredSize: new go.Size(8, 8), fill: "tomato", stroke: "darkred" }),
+                        "relinkingTool.toHandleArchetype":
+                            objGo(go.Shape, "Diamond", { segmentIndex: -1, cursor: "pointer", desiredSize: new go.Size(8, 8), fill: "darkred", stroke: "tomato" }),
+                        "linkReshapingTool.handleArchetype":
+                            objGo(go.Shape, "Diamond", { desiredSize: new go.Size(7, 7), fill: "lightblue", stroke: "deepskyblue" }),
+                        rotatingTool: objGo(TopRotatingTool),  // defined below
+                        "rotatingTool.snapAngleMultiple": 15,
+                        "rotatingTool.snapAngleEpsilon": 15,
+                        "undoManager.isEnabled": true
+                    });
+
+            // when the document is modified, add a "*" to the title and enable the "Save" button
+            myDiagram.addDiagramListener("Modified", function(e) {
+                var button = document.getElementById("SaveButton");
+                if (button) button.disabled = !myDiagram.isModified;
+                var idx = document.title.indexOf("*");
+                if (myDiagram.isModified) {
+                    if (idx < 0) document.title += "*";
+                } else {
+                    if (idx >= 0) document.title = document.title.substr(0, idx);
+                }
+            });
+
+            // Define a function for creating a "port" that is normally transparent.
+            // The "name" is used as the GraphObject.portId, the "spot" is used to control how links connect
+            // and where the port is positioned on the node, and the boolean "output" and "input" arguments
+            // control whether the user can draw links from or to the port.
+            function makePort(name, spot, output, input) {
+                // the port is basically just a small transparent square
+                return objGo(go.Shape, "Circle",
+                    {
+                        fill: null,  // not seen, by default; set to a translucent gray by showSmallPorts, defined below
+                        stroke: null,
+                        desiredSize: new go.Size(7, 7),
+                        alignment: spot,  // align the port on the main Shape
+                        alignmentFocus: spot,  // just inside the Shape
+                        portId: name,  // declare this object to be a "port"
+                        fromSpot: spot, toSpot: spot,  // declare where links may connect at this port
+                        fromLinkable: output, toLinkable: input,  // declare whether the user may draw links to/from here
+                        cursor: "pointer"  // show a different cursor to indicate potential link point
+                    });
+            }
+
+            var nodeSelectionAdornmentTemplate =
+                objGo(go.Adornment, "Auto",
+                    objGo(go.Shape, { fill: null, stroke: "deepskyblue", strokeWidth: 1.5, strokeDashArray: [4, 2] }),
+                    objGo(go.Placeholder)
+                );
+
+            var nodeResizeAdornmentTemplate =
+                objGo(go.Adornment, "Spot",
+                    { locationSpot: go.Spot.Right },
+                    objGo(go.Placeholder),
+                    objGo(go.Shape, { alignment: go.Spot.TopLeft, cursor: "nw-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { alignment: go.Spot.Top, cursor: "n-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { alignment: go.Spot.TopRight, cursor: "ne-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+
+                    objGo(go.Shape, { alignment: go.Spot.Left, cursor: "w-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { alignment: go.Spot.Right, cursor: "e-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+
+                    objGo(go.Shape, { alignment: go.Spot.BottomLeft, cursor: "se-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { alignment: go.Spot.Bottom, cursor: "s-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { alignment: go.Spot.BottomRight, cursor: "sw-resize", desiredSize: new go.Size(6, 6), fill: "lightblue", stroke: "deepskyblue" })
+                );
+
+            var nodeRotateAdornmentTemplate =
+                objGo(go.Adornment,
+                    { locationSpot: go.Spot.Center, locationObjectName: "CIRCLE" },
+                    objGo(go.Shape, "Circle", { name: "CIRCLE", cursor: "pointer", desiredSize: new go.Size(7, 7), fill: "lightblue", stroke: "deepskyblue" }),
+                    objGo(go.Shape, { geometryString: "M3.5 7 L3.5 30", isGeometryPositioned: true, stroke: "deepskyblue", strokeWidth: 1.5, strokeDashArray: [4, 2] })
+                );
+
+            myDiagram.nodeTemplate =
+                objGo(go.Node, "Spot",
+                    { locationSpot: go.Spot.Center },
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    { selectable: true, selectionAdornmentTemplate: nodeSelectionAdornmentTemplate },
+                    { resizable: true, resizeObjectName: "PANEL", resizeAdornmentTemplate: nodeResizeAdornmentTemplate },
+                    { rotatable: true, rotateAdornmentTemplate: nodeRotateAdornmentTemplate },
+                    new go.Binding("angle").makeTwoWay(),
+                    // the main object is a Panel that surrounds a TextBlock with a Shape
+                    objGo(go.Panel, "Auto",
+                        { name: "PANEL" },
+                        new go.Binding("desiredSize", "size", go.Size.parse).makeTwoWay(go.Size.stringify),
+                        objGo(go.Shape, "Rectangle",  // default figure
+                            {
+                                portId: "", // the default port: if no spot on link data, use closest side
+                                fromLinkable: true, toLinkable: true, cursor: "pointer",
+                                fill: "white",  // default color
+                                strokeWidth: 2
+                            },
+                            new go.Binding("figure"),
+                            new go.Binding("fill")),
+                        objGo(go.TextBlock,
+                            {
+                                font: "bold 11pt Helvetica, Arial, sans-serif",
+                                margin: 8,
+                                maxSize: new go.Size(160, NaN),
+                                wrap: go.TextBlock.WrapFit,
+                                editable: true
+                            },
+                            new go.Binding("text").makeTwoWay())
+                    ),
+                    // four small named ports, one on each side:
+                    makePort("T", go.Spot.Top, false, true),
+                    makePort("L", go.Spot.Left, true, true),
+                    makePort("R", go.Spot.Right, true, true),
+                    makePort("B", go.Spot.Bottom, true, false),
+                    { // handle mouse enter/leave events to show/hide the ports
+                        mouseEnter: function(e, node) { showSmallPorts(node, true); },
+                        mouseLeave: function(e, node) { showSmallPorts(node, false); }
+                    }
+                );
+
+            function showSmallPorts(node, show) {
+                node.ports.each(function(port) {
+                    if (port.portId !== "") {  // don't change the default port, which is the big shape
+                        port.fill = show ? "rgba(0,0,0,.3)" : null;
+                    }
+                });
+            }
+
+            var linkSelectionAdornmentTemplate =
+                objGo(go.Adornment, "Link",
+                    objGo(go.Shape,
+                        // isPanelMain declares that this Shape shares the Link.geometry
+                        { isPanelMain: true, fill: null, stroke: "deepskyblue", strokeWidth: 0 })  // use selection object's strokeWidth
+                );
+
+            myDiagram.linkTemplate =
+                objGo(go.Link,  // the whole link panel
+                    { selectable: true, selectionAdornmentTemplate: linkSelectionAdornmentTemplate },
+                    { relinkableFrom: true, relinkableTo: true, reshapable: true },
+                    {
+                        routing: go.Link.AvoidsNodes,
+                        curve: go.Link.JumpOver,
+                        corner: 5,
+                        toShortLength: 4
+                    },
+                    new go.Binding("points").makeTwoWay(),
+                    objGo(go.Shape,  // the link path shape
+                        { isPanelMain: true, strokeWidth: 2 }),
+                    objGo(go.Shape,  // the arrowhead
+                        { toArrow: "Standard", stroke: null }),
+                    objGo(go.Panel, "Auto",
+                        new go.Binding("visible", "isSelected").ofObject(),
+                        objGo(go.Shape, "RoundedRectangle",  // the link shape
+                            { fill: "#F8F8F8", stroke: null }),
+                        objGo(go.TextBlock,
+                            {
+                                textAlign: "center",
+                                font: "10pt helvetica, arial, sans-serif",
+                                stroke: "#919191",
+                                margin: 2,
+                                minSize: new go.Size(10, NaN),
+                                editable: true
+                            },
+                            new go.Binding("text").makeTwoWay())
+                    )
+                );
+
+            load();  // load an initial diagram from some JSON text
+
+            // initialize the Palette that is on the left side of the page
+            myPalette =
+                objGo(go.Palette, "myPaletteDiv",  // must name or refer to the DIV HTML element
+                    {
+                        maxSelectionCount: 1,
+                        nodeTemplateMap: myDiagram.nodeTemplateMap,  // share the templates used by myDiagram
+                        linkTemplate: // simplify the link template, just in this Palette
+                            objGo(go.Link,
+                                { // because the GridLayout.alignment is Location and the nodes have locationSpot == Spot.Center,
+                                    // to line up the Link in the same manner we have to pretend the Link has the same location spot
+                                    locationSpot: go.Spot.Center,
+                                    selectionAdornmentTemplate:
+                                        objGo(go.Adornment, "Link",
+                                            { locationSpot: go.Spot.Center },
+                                            objGo(go.Shape,
+                                                { isPanelMain: true, fill: null, stroke: "deepskyblue", strokeWidth: 0 }),
+                                            objGo(go.Shape,  // the arrowhead
+                                                { toArrow: "Standard", stroke: null })
+                                        )
+                                },
+                                {
+                                    routing: go.Link.AvoidsNodes,
+                                    curve: go.Link.JumpOver,
+                                    corner: 5,
+                                    toShortLength: 4
+                                },
+                                new go.Binding("points"),
+                                objGo(go.Shape,  // the link path shape
+                                    { isPanelMain: true, strokeWidth: 2 }),
+                                objGo(go.Shape,  // the arrowhead
+                                    { toArrow: "Standard", stroke: null })
+                            ),
+                        model: new go.GraphLinksModel([  // specify the contents of the Palette
+                            { text: "dec", figure: "Circle", fill: "#00AD5F" },
+                            { text: "act" },
+                            //{ text: "DB", figure: "Database", fill: "lightgray" },
+                            { text: "enq", figure: "Diamond", fill: "lightskyblue" },
+                            //{ text: "End", figure: "Circle", fill: "#CE0620" },
+                            { text: "plan", figure: "RoundedRectangle", fill: "lightyellow" }
+                        ], [
+                            // the Palette also has a disconnected Link, which the user can drag-and-drop
+                            { points: new go.List(go.Point).addAll([new go.Point(0, 0), new go.Point(30, 0), new go.Point(30, 40), new go.Point(60, 40)]) }
+                        ])
+                    });
+        }
+
+
+        function TopRotatingTool() {
+            debugger;
+            go.RotatingTool.call(this);
+        }
+        go.Diagram.inherit(TopRotatingTool, go.RotatingTool);
+
+        /** @override */
+        TopRotatingTool.prototype.updateAdornments = function(part) {
+            debugger;
+            go.RotatingTool.prototype.updateAdornments.call(this, part);
+            var adornment = part.findAdornment("Rotating");
+            if (adornment !== null) {
+                adornment.location = part.rotateObject.getDocumentPoint(new go.Spot(0.5, 0, 0, -30));  // above middle top
+                showDetail(part.Yd);
+            }
+        };
+
+        /** @override */
+        TopRotatingTool.prototype.rotate = function(newangle) {
+            debugger;
+            go.RotatingTool.prototype.rotate.call(this, newangle + 90);
+        };
+        // end of TopRotatingTool class
+
+
+        // Show the diagram's model in JSON format that the user may edit
+        function save() {
+            debugger;
+            saveDiagramProperties();  // do this first, before writing to JSON
+            document.getElementById("mySavedModel").value = myDiagram.model.toJson();
+            myDiagram.isModified = false;
+            //将任务网络保存至数据库
+            saveNetworkToDB();
+        }
+        function load() {
+            debugger;
+            myDiagram.model = go.Model.fromJson(document.getElementById("mySavedModel").value);
+            loadDiagramProperties();  // do this after the Model.modelData has been brought into memory
+        }
+
+        function saveDiagramProperties() {
+            debugger;
+            myDiagram.model.modelData.position = go.Point.stringify(myDiagram.position);
+        }
+        function loadDiagramProperties(e) {
+            debugger;
+            // set Diagram.initialPosition, not Diagram.position, to handle initialization side-effects
+            var pos = myDiagram.model.modelData.position;
+            if (pos) myDiagram.initialPosition = go.Point.parse(pos);
+        }
+
+
+        /**
+         * 保存任务网络至数据库的方法
+         * 只要是系统中出现的疾病，都默认在数据库中有对应的数据结构，所以这里只进行数据更新，而不进行创建操作
+         */
+        function saveNetworkToDB() {
+            debugger;
+            //得到任务网络
+            var task_network = $("#mySavedModel").val();
+            console.log(task_network);
+            //得到疾病名称
+            var disease = $("#services").text();
+            //发送至后台处理
+            $.ajax({
+                url:"/cdss/saveNetworkToDB",
+                data:{"disease":disease,"task_network":task_network},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+                    console.log(res);
+                }
+            });
+            //显示默认节点信息框
+            //showNodeInfo("defaultInfo");
+        }
+
+        /**
+         * 根据节点类型展示特定的节点信息框
+         * @param nodeType
+         */
+        function showNodeInfo(nodeType) {
+            debugger;
+            if(nodeType == "defaultInfo") {//显示默认的信息显示框
+                $("#defaultInfo").show();
+                $("#enquiryInfo").hide();
+                $("#decisionInfo").hide();
+                $("#actionInfo").hide();
+                $("#planInfo").hide();
+            }else if(nodeType == "enquiryInfo") {
+                $("#enquiryInfo").show();
+                $("#defaultInfo").hide();
+                $("#decisionInfo").hide();
+                $("#actionInfo").hide();
+                $("#planInfo").hide();
+            }else if(nodeType == "decisionInfo") {
+                $("#decisionInfo").show();
+                $("#enquiryInfo").hide();
+                $("#defaultInfo").hide();
+                $("#actionInfo").hide();
+                $("#planInfo").hide();
+            }else if(nodeType == "actionInfo") {
+                $("#actionInfo").show();
+                $("#decisionInfo").hide();
+                $("#enquiryInfo").hide();
+                $("#defaultInfo").hide();
+                $("#planInfo").hide();
+            }else if(nodeType == "planInfo") {
+                $("#planInfo").show();
+                $("#actionInfo").hide();
+                $("#decisionInfo").hide();
+                $("#enquiryInfo").hide();
+                $("#defaultInfo").hide();
+            }else {
+                $("#defaultInfo").show();
+                $("#enquiryInfo").hide();
+                $("#decisionInfo").hide();
+                $("#actionInfo").hide();
+                $("#planInfo").hide();
+            }
+        }
+
+        /**
+         * 置空enquiryInfo这个信息框
+         */
+        function emptyEnquiryInfo() {
+            //置空任务的通用属性
+            $("#enquiryName").val("");
+            $("#enquiryCaption").val("");
+            $("#enquiryDescription").val("");
+            $("#enquiryPrecondition").val("");
+            //置空enquiry source
+            $("#enquiryDataSource").empty();
+        }
+
+        /**
+         * 用户点击任务网络中的某个节点，进而
+         * 显示该节点细节信息的方法
+         * @param node
+         */
+        var nodeId;//记录用户当前点击的是那个节点
+        function showDetail(node) {
+            console.log(node);
+            //得到疾病名称
+            var disease = $("#services").text();
+            if(node.figure == "Diamond") {//图形的形状是菱形，则显示enquiry节点信息
+                nodeId = node.key;
+                //先从数据库中查出该节点的信息，展示到这个信息框里面
+                $.ajax({
+                    url:"/cdss/getNodeInfoByDiseaseAndId",
+                    data:{"nodeId":nodeId,"disease":disease},
+                    dataType:"json",
+                    type:"POST",
+                    success:function (res) {
+                        debugger;
+                        console.log(res);
+                        //传过来的是一个map集合，判断是为为空不能用==
+                        if(JSON.stringify(res) == "{}") {
+                            //为空就算了，清空这个地方
+                            emptyEnquiryInfo();
+                        }else {
+                            //先置空原来的值
+                            emptyEnquiryInfo();
+                            //将查出来的数据显示到对应的框里面
+                            //首先显示节点的通用信息
+                            $("#enquiryName").val(res.name);
+                            $("#enquiryCaption").val(res.caption);
+                            $("#enquiryDescription").val(res.description);
+                            $("#enquiryPrecondition").val(res.precondition);
+                            //将enquiry source中的数据展示出来
+                            var enquirySources = res.enquiry_source;
+                            for(var i=0;i<enquirySources.length;i++) {
+                                var source = enquirySources[i];//得到每一个源
+                                var row = "<tr><td><input type='checkbox' id='enqCheckBox' value="+source.name+"></td><td>"+source.name+"</td><td>"+source.caption+"</td><td>"+source.data_type+"</td><td>"+source.range+"</td><td>"+source.default_value+"</td><td>"+source.select_model+"</td></tr>";
+                                $("#enquiryDataSource").append(row);
+                            }
+                        }
+                    }
+                });
+                showNodeInfo("enquiryInfo");
+            } else if(node.figure == "RoundedRectangle") {//图形的形状是圆角矩形，则显示plan节点信息
+                nodeId = node.key;
+                //先从数据库中查出该节点的信息，显示在这个框里面
+                $.ajax({
+                    url:"/cdss/getNodeInfoByDiseaseAndId",
+                    data:{"nodeId":nodeId,"disease":disease},
+                    dataType:"json",
+                    type:"POST",
+                    success:function (res) {
+                        debugger;
+                        console.log(res);
+                        //传过来的是一个map集合，判断是为为空不能用==
+                        if(JSON.stringify(res) == "{}") {
+                            //为空就算了，清空这个地方
+                            emptyPlan();
+                        }else {
+                            //先清空
+                            emptyPlan();
+                            //把传过来的数据显示出来
+                            $("#planName").val(res.name);
+                            $("#planCaption").val(res.caption);
+                            $("#planDescription").val(res.description);
+                            $("#planPrecondition").val(res.precondition);
+                            //显示plan的content
+                            $("#planContent").val(res.content);
+                        }
+                    }
+                });
+                showNodeInfo("planInfo");
+            }else if(node.figure == "Circle") {//图形的形状是圆形，则显示decision节点信息
+                nodeId = node.key;
+                //先从数据库中查出该节点的信息，显示在这个框里面
+                $.ajax({
+                    url:"/cdss/getNodeInfoByDiseaseAndId",
+                    data:{"nodeId":nodeId,"disease":disease},
+                    dataType:"json",
+                    type:"POST",
+                    success:function (res) {
+                        debugger;
+                        console.log(res);
+                        //传过来的是一个map集合，判断是为为空不能用==
+                        if(JSON.stringify(res) == "{}") {
+                            //为空就算了，清空这个地方
+                            emptyCandidate();
+                        }else {
+                            //先置空原来的值
+                            emptyCandidate();
+                            //先显示通用数据
+                            $("#decisionName").val(res.name);
+                            $("#decisionCaption").val(res.caption);
+                            $("#decisionDescription").val(res.description);
+                            $("#decisionPrecondition").val(res.precondition);
+                            //显示第一个标签页的信息
+                            var candidates = res.candidates;
+                            for(var i=0;i<candidates.length;i++) {
+                                var candidate = candidates[i];
+                                var row = "<tr><td>"+candidate.name+"</td><td>"+candidate.caption+"</td><td>"+candidate.priority+"</td><td><a onclick='deleteCandidate()'><span class='glyphicon glyphicon-minus' aria-hidden='true'></span></a></td></tr>";
+                                $("#candidateList").append(row);
+                            }
+
+                            //显示第二个标签页的信息显示出来
+                            for(var i=0;i<candidates.length;i++) {
+                                var candidate = candidates[i];
+
+                                //先删除
+                                //删除第二个标签页中这个candidate对应的arguments面板
+                                $("div[id='"+candidate.name+"']").remove();
+                                //删除下拉框中对应的项
+                                $("li[id='li_"+candidate.name+"']").remove();
+
+                                //把下拉菜单拼出来
+                                var row = "<li id='li_"+candidate.name+"'><a href='#"+candidate.name+"' tabindex='-1' data-toggle='tab'>"+candidate.name+"</a></li>";
+                                $("#dropdownCandidate").append(row);
+                                //把下拉菜单对应的论据拼出来
+                                var head = "<div class='tab-pane fade' mydef='arg' id='"+candidate.name+"'>"+"<table class='table table-bordered'>" +"<thead><tr><th>name</th><th>caption</th><th>condition</th><th>support</th>"
+                                            +"<th><a onclick='addArgument("+candidate.name+")'><span class='glyphicon glyphicon-plus' aria-hidden='true'></span></a></th>"+"</tr></thead><tbody>";
+                                var main ="";
+                                var arguments = candidate.arguments;
+                                for(var j=0;j<arguments.length;j++) {
+                                    var argument = arguments[j];
+                                    main += "<tr><td>"+argument.name+"</td><td>"+argument.caption+"</td><td>"+argument.condition+"</td><td>"+argument.support+"</td>"
+                                                +"<td><a onclick='deleteArgument()'><span class='glyphicon glyphicon-minus' aria-hidden='true'></span></a></td></tr>";
+                                }
+                                var tail = "</tbody></table></div>";
+                                $("#myTabContent").append(head+main+tail);
+                            }
+                        }
+                    }
+                });
+                showNodeInfo("decisionInfo");
+            } else {//action节点在传进来的对象中没有形状说明。但是表现为矩形
+                nodeId = node.key;
+                //先从数据库中查出该节点的信息，显示在这个框里面
+                $.ajax({
+                    url:"/cdss/getNodeInfoByDiseaseAndId",
+                    data:{"nodeId":nodeId,"disease":disease},
+                    dataType:"json",
+                    type:"POST",
+                    success:function (res) {
+                        debugger;
+                        console.log(res);
+                        //传过来的是一个map集合，判断是为为空不能用==
+                        if(JSON.stringify(res) == "{}") {
+                            //为空就算了，清空这个地方
+                            emptyAction();
+                        }else {
+                            //先清空原来的值
+                            emptyAction();
+                            //把传过来的数据显示出来
+                            $("#actionName").val(res.name);
+                            $("#actionCaption").val(res.caption);
+                            $("#actionDescription").val(res.description);
+                            $("#actionPrecondition").val(res.precondition);
+                            //显示action的content
+                            $("#actionContent").val(res.content);
+                        }
+                    }
+                });
+
+                showNodeInfo("actionInfo");
+            }
+        }
+
+
+
+        /**
+         * 清空plan的信息
+         *
+         */
+        function emptyPlan() {
+            //首先清空节点的通用信息
+            $("#planName").val("");
+            $("#planCaption").val("");
+            $("#planDescription").val("");
+            $("#planPrecondition").val("");
+            //清空plan的content
+            $("#planContent").val("");
+        }
+
+
+
+        /**
+         * 清空action的信息
+         *
+         */
+        function emptyAction() {
+            //首先清除节点的通用信息
+            $("#actionName").val("");
+            $("#actionCaption").val("");
+            $("#actionDescription").val("");
+            $("#actionPrecondition").val("");
+            //清除action的content
+            $("#actionContent").val("");
+        }
+
+
+
+        /**
+         * 清空candidate信息框的所有信息
+         *
+         */
+        function emptyCandidate() {
+            //首先清除节点通用信息
+            $("#decisionName").val("");
+            $("#decisionCaption").val("");
+            $("#decisionDescription").val("");
+            $("#decisionPrecondition").val("");
+            //清除第一个标签页
+            $("#candidateList").empty();
+            //清除第二个标签页的信息，过会儿再说
+            $("#dropdownCandidate").empty();//清空下拉菜单
+            $("div[mydef='arg']").empty();
+        }
+
+
+        /**
+         * decision节点数据发生变化，触发这个方法
+         *
+         */
+        function decisionInfoChange() {
+            //得到该节点所有数据
+            var decisionInfo = getDecisionInfo();
+            console.log(decisionInfo);//拿到了值
+            var disease = $("#services").text();//得到疾病名称
+            //发送给后台更新(nodeId是全局变量)
+            updateNodeInfo(disease,nodeId,JSON.stringify(decisionInfo));
+
+        }
+
+
+        /**
+         * 得到decision节点的所有数据
+         *
+         */
+        function getDecisionInfo() {
+            debugger;
+            var decisionInfo = {};
+            //先得到节点的通用信息
+            decisionInfo.task_type = "decision";
+            decisionInfo.nodeId = nodeId;
+            decisionInfo.name = $("#decisionName").val();
+            decisionInfo.caption = $("#decisionCaption").val();
+            decisionInfo.description = $("#decisionDescription").val();
+            decisionInfo.precondition = $("#decisionPrecondition").val();
+            decisionInfo.candidates = [];
+            //封装candidate数据
+            $("#candidateList tr").each(function (index,tr) {
+                debugger;
+                console.log(tr);
+                var tds = tr.children;
+                var candidateTemp = {};
+                candidateTemp.name = tds[0].textContent;
+                candidateTemp.caption = tds[1].textContent;
+                candidateTemp.priority = tds[2].textContent;
+                candidateTemp.arguments = [];
+                //得到argument
+                $("#"+tds[0].textContent+" table tbody tr").each(function (index1,tr1) {
+                    debugger;
+                    console.log(tr1);
+                    var argument = {};
+                    var tds = tr1.children;
+                    argument.name = tds[0].textContent;
+                    argument.caption = tds[1].textContent;
+                    argument.condition = tds[2].textContent;
+                    argument.support = tds[3].textContent;
+                    candidateTemp.arguments.push(argument);
+                });
+                decisionInfo.candidates.push(candidateTemp);
+            });
+            //看一下结果
+            debugger;
+            console.log(decisionInfo);
+            return decisionInfo;
+        }
+
+
+        /**
+         * 用户点击了那个添加candidate按钮,对应的模态框弹出
+         *
+         */
+        function addCandidate() {
+            //弹出一个模态框供用户输入数据
+            $("#showCandidateBox").click();
+        }
+
+
+        /**
+         * 用户点击了取消candidate模态框
+         * 则清空模态框，然后隐藏模态框
+         */
+        function cancelCandidateModal() {
+            //清空candidate模态框
+            emptyCandidateModal();
+            $("#myAddCandidate").modal('hide');
+        }
+
+
+        /**
+         * 用户点击了提交candidate模态框
+         */
+        function submitCandidateModal() {
+            //先拿到模态框中的数据
+            var candidateName =  $("#candidateName").val();
+            var candidateCaption =  $("#candidateCaption").val();
+            var candidatePriority =  $("#candidatePriority").val();
+
+            //将数据拼到表格中去
+            var row = "<tr><td>"+candidateName+"</td><td>"+candidateCaption+"</td><td>"+candidatePriority+"</td><td><a onclick='deleteCandidate()'><span class='glyphicon glyphicon-minus' aria-hidden='true'></span></a></td></tr>";
+            $("#candidateList").append(row);
+
+            //为这个candidate添加第二个标签页的数据
+            //先删除
+            //删除第二个标签页中这个candidate对应的arguments面板
+            $("div[id='"+candidateName+"']").remove();
+            //删除下拉框中对应的项
+            $("li[id='li_"+candidateName+"']").remove();
+
+            //把下拉菜单拼出来
+            var row = "<li id='li_"+candidateName+"'><a href='#"+candidateName+"' tabindex='-1' data-toggle='tab'>"+candidateName+"</a></li>";
+            $("#dropdownCandidate").append(row);
+            //把下拉菜单对应的论据拼出来
+            var head = "<div class='tab-pane fade' mydef='arg' id='"+candidateName+"'>"+"<table class='table table-bordered'>" +"<thead><tr><th>name</th><th>caption</th><th>condition</th><th>support</th>"
+                +"<th><a  onclick='addArgument("+candidateName+")'><span class='glyphicon glyphicon-plus' aria-hidden='true'></span></a></th>"+"</tr></thead><tbody>";
+            var main ="";
+            var tail = "</tbody></table></div>";
+            $("#myTabContent").append(head+main+tail);
+
+            //将更改数据写入数据库
+            decisionInfoChange();
+
+            //清空candidate模态框
+            emptyCandidateModal();
+            //关闭模态框
+            $("#myAddCandidate").modal('hide');
+        }
+
+
+
+        /**
+         * 用户点击了candidate列表中的那个减号
+         * 然后删除那一行的数据
+         * 删除对应的下拉框的数据
+         * 删除下拉框对应的显示面板
+         *
+         */
+        function deleteCandidate(event) {
+            debugger;
+            //因为参数不好传递，只好通过event对象来获取所需数据
+            event = event||window.event;//获取到这个函数的触发事件
+            console.log(event);
+
+            //先得到要删除的candidate的名字
+            var candidateName = event.currentTarget.parentElement.parentElement.children[0].textContent;
+
+            //删除第二个标签页中这个candidate对应的arguments面板
+            $("div[id='"+candidateName+"']").remove();
+            //删除下拉框中对应的项
+            $("li[id='li_"+candidateName+"']").remove();
+            //删除用户点的那一行
+            event.currentTarget.parentElement.parentElement.remove();
+
+            //将更改数据写入数据库
+            decisionInfoChange();
+        }
+
+
+
+
+        /**
+         * 清空了candidateModal
+         */
+        function emptyCandidateModal() {
+            $("#candidateName").val("");
+            $("#candidateCaption").val("");
+            $("#candidatePriority").val("");
+        }
+
+
+        /**
+         * 用户点击添加argument的按钮
+         *
+         */
+        var candidateName;
+        function addArgument(argumentPanel) {
+            debugger;
+            console.log(argumentPanel);
+            candidateName = argumentPanel.id;//将argument name存起来
+            //弹出一个收集用户输入的argument的模态框
+            $("#showArgumentBox").click();
+        }
+
+
+        /**
+         * 清空添加argument的模态框
+         *
+         */
+        function emptyArgumentModal() {
+            $("#argumentName").val("");
+            $("#argumentCaption").val("");
+            $("#argumentCondition").val("");
+            $("#argumentSupport").val("");
+        }
+
+
+        /**
+         * 用户再添加argument的那个模态框点击了取消按钮
+         * 则清空已经输入的值，直接隐藏模态框
+         *
+         */
+        function cancelAddArgument() {
+            emptyArgumentModal();
+            $("#myAddArgument").modal('hide');
+        }
+
+
+
+        /**
+         * 用户再argument模态框点击确定
+         * 将用户输入的数据的显示到argument的列表中去
+         * 然后调用candidate信息改变方法保存入数据库中
+         *
+         */
+        function submitAddArgument() {
+            //先获取用户输入的数据
+            var argument_name = $("#argumentName").val();
+            var argument_caption = $("#argumentCaption").val();
+            var argument_condition = $("#argumentCondition").val();
+            var argument_support = $("#argumentSupport").val();
+
+            //将用户输入的数据拼到argument列表当中去
+            var row = "<tr><td>"+argument_name+"</td><td>"+argument_caption+"</td><td>"+argument_condition+"</td><td>"+argument_support+"</td>"
+                +"<td><a onclick='deleteArgument()'><span class='glyphicon glyphicon-minus' aria-hidden='true'></span></a></td></tr>";
+            $("#"+candidateName+" table tbody").append(row);
+
+            //清空模态框，并隐藏
+            emptyArgumentModal();
+            $("#myAddArgument").modal('hide');
+
+            //将更改保存入数据库
+            decisionInfoChange();
+        }
+
+
+        /**
+         * 用户点击删除argument的那个减号
+         *
+         */
+        function deleteArgument(event) {
+            debugger;
+            //因为参数不好传递，只好通过event对象来获取所需数据
+            event = event||window.event;//获取到这个函数的触发事件
+            console.log(event);
+
+            //删除掉这一行
+            event.currentTarget.parentElement.parentElement.remove();
+
+            //将更改结果写入数据库
+            decisionInfoChange();
+        }
+
+
+        /**
+         * 弹出模态框
+         * 用户enquiry source点击加号，为某节点添加问题
+         */
+        function addEnquirySource() {
+            debugger;
+            //全局变量nodeId记录的是当前用户点击的节点
+            //弹出一个框，用于收集用户填写的问题信息
+            $("#showQuestionBox").click();
+        }
+
+        /**
+         * 点取消关闭模态框
+         * 用户点击模态框的取消按钮，什么都不做，直接关闭
+         */
+        function cancelMyModal() {
+            //清空所有的值
+            emptyModal();
+            $('#myModal').modal('hide');
+        }
+
+
+        /**
+         * 将模态框的数据置为空
+         */
+        function emptyModal() {
+            $("#exampleInputName2").val("");
+            $("#exampleInputName3").val("");
+            $("#exampleInputName5").val("");
+            $("#rangeList").empty();
+            $("#exampleInputName6").val("");
+            $("#exampleInputName8").val();
+        }
+
+
+        /**
+         * 模态框中数据类型改变
+         *
+         */
+        function typeSelect() {
+            //得到用户选择的数据类型
+            var dataType = $("#exampleInputName4").val();
+            if(dataType != "text") {//用户选择非text类型，也就是其他几种类型
+                //清空rangeList里面的值，并因此rangeBox
+                $("#rangeList").empty();
+                $("#rangeBox").hide();
+                //清空默认值
+                $("#exampleInputName6").val("");
+                //隐藏选择模式
+                $("#selectModel").hide();
+                if(dataType == "int") {
+                    $("#exampleInputName6").attr("placeholder","input a int number");
+                } else if(dataType == "double") {
+                    $("#exampleInputName6").attr("placeholder","input a double number");
+                } else {
+                    $("#exampleInputName6").attr("placeholder","input yes or no");
+                }
+            }else {//用户选择的是text类型
+                //否则回复原样
+                $("#rangeBox").show();
+                $("#selectModel").show();
+                $("#exampleInputName6").attr("placeholder","input an option in the List");
+            }
+        }
+
+        /**
+         * 用户点击range下的add按钮，将输入的值添加到rangeList中
+         */
+        function addValueToRangeList() {
+            //首先取到range输入框中的值
+            var rangeValue = $("#exampleInputName5").val();
+            if(rangeValue == "" || rangeValue == null) {
+                return;//如果range中没有值，点按钮也就没有反映
+            }else {
+                //range中的值不为空，则将里面的值添加到rangList中
+                var option=$("<option></option>").text(rangeValue);//创建元素
+                $("#rangeList").append(option);
+                //将range里面的值清空
+                $("#exampleInputName5").val("");
+            }
+        }
+
+
+        /**
+         * 用户点击range下的remove按钮，将值从rangeList中移除
+         */
+        function removeValueFromRangeList() {
+            debugger;
+            //首先取到rangeList中的值
+            var rangeListValue = $("#rangeList").val();
+            if(rangeListValue == "" || rangeListValue == null) {
+                return;//没有选择要移除的值，点按钮也没有反应
+            }else {
+                //移除被选中的值
+                $("#rangeList").find("option:selected").remove();
+            }
+        }
+
+
+        /**
+         * 模态框提交方法
+         *
+         */
+        function submitMyModal() {
+            //首先取出模态框里面所有的数据，放到enquiry source框里面去
+            var name =  $("#exampleInputName2").val();//name
+            var caption =  $("#exampleInputName3").val();//caption
+            var dataType = $("#exampleInputName4").val();//datatype
+            var rangeList="";//rangeList
+            if(dataType == "text"){
+                //遍历rangeList，取出里面的选项
+                $("#rangeList option").each(
+                    function (index) {
+                        //rangeList.push(this.value);
+                        rangeList += (this.value).toString()+","
+                    }
+                );
+                //去掉rangeList最后一个逗号
+                rangeList = rangeList.substring(0,rangeList.length-1);
+            }else if(dataType == "boolean"){
+                rangeList += "yes,no"
+            } else if(dataType == "int" || dataType == "double") {
+                rangeList += " ";
+            }
+            var defaultValue = $("#exampleInputName6").val();
+            var selectModel = $("#exampleInputName8").val();
+            //输入合法性检查
+            if((name == "" ||name == null)||(caption == "" || caption == null)||(rangeList == "" || rangeList == null)||(defaultValue == "" || defaultValue == null)) {
+                alert("存在选项未被输入");
+            }else {
+                var row = "<tr><td><input type='checkbox' id='enqCheckBox' value="+name+"></td><td>"+name+"</td><td>"+caption+"</td><td>"+dataType+"</td><td>"+rangeList+"</td><td>"+defaultValue+"</td><td>"+selectModel+"</td></tr>";
+                $("#enquiryDataSource").append(row);
+                //清空所有的值
+                emptyModal();
+                //隐藏模态框
+                $('#myModal').modal('hide');
+            }
+            //调用enquiryInfoChange方法，将改变的数据固化到数据库中
+            enquiryInfoChange();
+        }
+
+        /**
+         * 用户在enquiry source列表中点删除
+         */
+        function minusEnquirySource() {
+            debugger;
+            //得到问题表格中所有的checkBox
+            var checkboxs = $("#enquiryDataSource tr td input");
+            var questionNameList = [];
+            checkboxs.each(function (index,checkbox) {
+                if(checkbox.checked == true) {
+                    var name = checkbox.value;
+                    console.log(name);
+                    questionNameList.push(name);
+                    //删除掉选中的项
+                    checkbox.parentElement.parentElement.remove();
+                }
+            });
+            if(questionNameList.length > 0) {
+                //调用enquiryInfoChange方法，将改变的数据固化到数据库中
+                enquiryInfoChange();
+            }else  {
+                alert("没有需要删除的项");
+            }
+
+        }
+
+        /**
+         * enquiryInfo信息框中的信息发生改变
+         */
+        function enquiryInfoChange() {
+            //将整个任务节点数据封装起来，发送给后台更新
+            var enquiryInfo = getEnuiryInfo();
+            console.log(enquiryInfo);//拿到了值
+            var disease = $("#services").text();//得到疾病名称
+            //发送给后台更新(nodeId是全局变量)
+            updateNodeInfo(disease,nodeId,JSON.stringify(enquiryInfo));
+        }
+
+
+
+        /**
+         * actionInfo信息框发生改变
+         *
+         */
+        function actionInfoChange() {
+            //获得整个action的全部信息
+            var actionInfo = getActionInfo();
+            console.log(actionInfo);
+            var disease = $("#services").text();//得到疾病名称
+            //发送给后台更新(nodeId是全局变量)
+            updateNodeInfo(disease,nodeId,JSON.stringify(actionInfo));
+        }
+
+
+        /**
+         * 得到action的所有信息
+         *
+         */
+        function getActionInfo() {
+            debugger;
+            var actionInfo = {};
+            actionInfo.task_type = "action";
+            actionInfo.nodeId = nodeId;
+            actionInfo.name = $("#actionName").val();
+            actionInfo.caption = $("#actionCaption").val();
+            actionInfo.description = $("#actionDescription").val();
+            actionInfo.precondition = $("#actionPrecondition").val();
+            //清除action的content
+            actionInfo.content = $("#actionContent").val();
+            //看一下最后的结果
+            debugger;
+            console.log(actionInfo);
+            return actionInfo;
+        }
+
+
+
+
+        /**
+         * planInfo信息框的信息发生改变
+         * 触发此方法，将改变保存到数据库
+         *
+         */
+        function planInfoChange() {
+            //首先获得整个plan的全部信息
+            var planInfo = getPlanInfo();
+            console.log(planInfo);
+            var disease = $("#services").text();//得到疾病名称
+            //发送给后台更新(nodeId是全局变量)
+            updateNodeInfo(disease,nodeId,JSON.stringify(planInfo));
+        }
+
+
+
+
+        /**
+         * 得到plan的所有信息
+         *
+         */
+        function getPlanInfo() {
+            debugger;
+            var planInfo = {};
+            planInfo.task_type = "plan";
+            planInfo.nodeId = nodeId;
+            planInfo.name = $("#planName").val();
+            planInfo.caption = $("#planCaption").val();
+            planInfo.description = $("#planDescription").val();
+            planInfo.precondition = $("#planPrecondition").val();
+            //清除action的content
+            planInfo.content = $("#planContent").val();
+            //看一下最后的结果
+            debugger;
+            console.log(planInfo);
+            return planInfo;
+        }
+
+
+
+
+
+
+
+        /**
+         * 更新节点的信息
+         * 通过疾病名称找到表
+         * 再通过nodeId找到对应的任务，进而更新
+         *
+         */
+        function updateNodeInfo(disease,nodeId,newNodeInfo) {
+            //先保存任务网络
+            save();
+            console.log(newNodeInfo);
+            $.ajax({
+                url:"/cdss/updateNodeInfo",
+                data:{"disease":disease,"nodeId":nodeId,"newNodeInfo":newNodeInfo},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+
+                }
+            });
+        }
+
+
+        /**
+         * 得到enquiryInfo这个里面的说有数据
+         */
+        function getEnuiryInfo() {
+            debugger;
+            var enquiryInfo = {};
+            enquiryInfo.task_type = "enquiry";
+            enquiryInfo.nodeId = nodeId;
+            enquiryInfo.name = $("#enquiryName").val();
+            enquiryInfo.caption = $("#enquiryCaption").val();
+            enquiryInfo.description = $("#enquiryDescription").val();
+            enquiryInfo.precondition = $("#enquiryPrecondition").val();
+            enquiryInfo.enquiry_source = [];
+            //通过遍历得到enquiry source的数据
+            $("#enquiryDataSource tr").each(function (index,tr) {
+                debugger;
+                console.log(tr);
+                var tds = tr.children;
+                var sourceTemp = {};//封装source的临时变量
+                sourceTemp.name = tds[1].textContent;
+                sourceTemp.caption = tds[2].textContent;
+                sourceTemp.data_type = tds[3].textContent;
+                if(tds[4].textContent != "" || tds[4].textContent != null) {
+                    sourceTemp.range = tds[4].textContent.split(",");//这里有个小坑，如果问题的选项中有逗号的化，会被分开。因为浏览器将数组解析成字符串了，这也是无奈之举
+                }
+                sourceTemp.default_value = tds[5].textContent;
+                sourceTemp.select_model = tds[6].textContent;
+                //将source添加到enquiryInfo里面去
+                enquiryInfo.enquiry_source.push(sourceTemp);
+            });
+            //看一下最后的结果
+            debugger;
+            console.log(enquiryInfo);
+            return enquiryInfo;
+        }
+
+
+    </script>
+    <script th:inline="javascript">
+        $(document).ready(function(){
+            //隐藏掉那个显示图形的json数据的文本域
+            $("#mySavedModel").hide();
+            //显示默认信息展示框
+            showNodeInfo("defaultInfo");
+            //得到该疾病的名称，疾病名是唯一标识符
+            var disease = [[${disease}]];
+            console.log(disease);
+            //显示该疾病任务网络
+            $.ajax({
+                url:"/cdss/getNetworkByDisease",
+                data:{"disease":disease},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+                    debugger;
+                    var task_network = JSON.stringify(res.task_network);//将对象变成字符串
+                    console.log(task_network);
+                    //将任务网络显示出来
+                    if(task_network != '{}') {//得到的东西不为空,判断对象不为空
+                        $("#mySavedModel").val(task_network);//则将从后台得到的东西显示出来,后台没有数据则使用默认的数据
+                        load();
+                    }
+                }
+            });
+        });
+    </script>
+</head>
+<body onload="init()">
+<!--导航栏部分开始-->
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="row" style="height:113px">
+            <div class="navbar-header col-md-4 col-md-offset-2">
+                <div class="header-left clearfix" style="margin-top:25px">
+                    <!-- logo -->
+                    <div class="logo smooth-scroll" style="float:left;wight:74px">
+                        <a href="#banner"><img id="logo" src="/images/logo_1.png" alt="Worthy"></a>
+                    </div>
+                    <!-- name-and-slogan -->
+                    <div class="site-name-and-slogan smooth-scroll" style="margin-top:15px">
+                        <div class="site-name"><a href="#banner">GMES</a></div>
+                        <div class="site-slogan"><a target="_blank" href="http://htmlcoder.me">Goal Management & Enactment System</a></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse col-md-6" id="bs-example-navbar-collapse-1" style="margin-top: 30px">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="#">Home <span class="sr-only">(current)</span></a></li>
+                    <li><a href="#">Decision</a></li>
+                    <li><a href="#">Guidelines</a></li>
+                    <li><a href="#">Knowledge</a></li>
+                    <li><a href="#">Reference</a></li>
+                    <li><a href="#">Login</a></li>
+                </ul>
+            </div><!-- /.navbar-collapse -->
+        </div>
+    </div><!-- /.container-fluid -->
+</nav>
+<!--导航栏部分结束-->
+
+<!--主体部分开始-->
+<div class="space"></div>
+<div class="space"></div>
+<div class="space"></div>
+<div class="container-fluid">
+    <h1 id="services" class="text-center title" th:text="${disease}"></h1>
+    <div class="space"></div>
+    <div class="row">
+        <!--左边-->
+        <div class="col-md-6 col-md-offset-1">
+            <div id="sample">
+                <div style="white-space:nowrap;">
+                    <!--左边部分-->
+                    <span style="display: inline-block; vertical-align: top; width:15%">
+                      <div id="myPaletteDiv" style="border: solid 1px black; height: 400px"></div>
+                    </span>
+                    <!--右边部分-->
+                    <span style="display: inline-block; vertical-align: top; width:85%">
+                      <div id="myDiagramDiv" style="border: solid 1px black; height: 400px"></div>
+                    </span>
+                    <div>
+                        <button id="SaveButton" onclick="save()" type="button" class="btn btn-primary btn-sm">Save</button>
+                        <button type="button" class="btn btn-default btn-sm" onclick="load()">Load</button>
+                        <span>  [删除节点后请手动保存任务图]</span>
+                    </div>
+                    <textarea id="mySavedModel" style="width:100%;height:300px">
+                    { "class": "go.GraphLinksModel",
+                      "linkFromPortIdProperty": "fromPort",
+                      "linkToPortIdProperty": "toPort",
+                      "nodeDataArray": [
+                     ],
+                      "linkDataArray": [
+                     ]}
+                    </textarea>
+                </div>
+                <!--显示节点细节-->
+                <div style="margin-top: 10px;width: 100%">
+                    <!--显示默认信息-->
+                    <div class="row" id="defaultInfo" style="border: solid 1px">
+                        <div class="col-xs-6 col-md-4" style="margin-top: 10px">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="inputEmail3" class="col-sm-4 control-label">name</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="inputEmail3">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="inputPassword3" class="col-sm-4 control-label">caption</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="inputPassword3">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="inputPassword4" class="col-sm-4 control-label">description</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="inputPassword4">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="inputPassword5" class="col-sm-4 control-label">precondition</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="inputPassword5">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
+                            <div class="panel panel-default">
+                                <div class="panel-heading" style="height: 40px">
+                                    <span style="float: left">node information</span>
+                                    <span style="float: right"></span>
+                                </div>
+                                <table class="table">
+                                    you must select a node.
+                                </table>
+                            </div>
+                        </div>
+                    </div><!--default over-->
+
+                    <!--显示问询信息-->
+                    <div class="row" id="enquiryInfo" style="border: solid 1px">
+                        <div class="col-xs-6 col-md-4" style="margin-top: 10px">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="enquiryName" class="col-sm-4 control-label">name</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="enquiryName" onchange="enquiryInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enquiryCaption" class="col-sm-4 control-label">caption</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="enquiryCaption" onchange="enquiryInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enquiryDescription" class="col-sm-4 control-label">description</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="enquiryDescription" onchange="enquiryInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="enquiryPrecondition" class="col-sm-4 control-label">precondition</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="enquiryPrecondition" onchange="enquiryInfoChange()">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
+                            <div class="panel panel-info">
+                                <div class="panel-heading" style="height: 40px">
+                                    <span style="float: left">enquiry source</span>
+                                    <span style="float: right">
+                                        <a id="enquiryPlus" onclick="addEnquirySource()"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
+                                        <a id="enquiryMinus" onclick="minusEnquirySource()"><span class="glyphicon glyphicon-minus" aria-hidden="true"></span></a>
+                                    </span>
+                                </div>
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th><span class="glyphicon glyphicon-check" aria-hidden="true"></span></th>
+                                            <th>name</th>
+                                            <th>caption</th>
+                                            <th>data type</th>
+                                            <th>range</th>
+                                            <th>default value</th>
+                                            <th>select model</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="enquiryDataSource">
+
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div><!--enquiry over-->
+
+                    <!--显示计划信息-->
+                    <div class="row" id="planInfo" style="border: solid 1px">
+                        <div class="col-xs-6 col-md-4" style="margin-top: 10px">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="planName" class="col-sm-4 control-label">name</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="planName" onchange="planInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="planCaption" class="col-sm-4 control-label">caption</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="planCaption" onchange="planInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="planDescription" class="col-sm-4 control-label">description</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="planDescription" onchange="planInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="planPrecondition" class="col-sm-4 control-label">precondition</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="planPrecondition" onchange="planInfoChange()">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
+                            <div class="panel panel-warning">
+                                <div class="panel-heading" style="height: 40px">
+                                    <span style="float: left">plan content</span>
+                                    <span style="float: right"></span>
+                                </div>
+                                <div class="panel-body">
+                                    <textarea class="form-control" rows="5" id="planContent" onchange="planInfoChange()"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!--plan over-->
+
+                    <!--显示活动信息-->
+                    <div class="row" id="actionInfo" style="border: solid 1px">
+                        <div class="col-xs-6 col-md-4" style="margin-top: 10px">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="actionName" class="col-sm-4 control-label">name</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="actionName" onchange="actionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="actionCaption" class="col-sm-4 control-label">caption</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="actionCaption" onchange="actionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="actionDescription" class="col-sm-4 control-label">description</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="actionDescription" onchange="actionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="actionPrecondition" class="col-sm-4 control-label">precondition</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="actionPrecondition" onchange="actionInfoChange()">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
+                            <div class="panel panel-default">
+                                <div class="panel-heading" style="height: 40px">
+                                    <span style="float: left">action content</span>
+                                    <span style="float: right"></span>
+                                </div>
+                                <div class="panel-body">
+                                    <textarea class="form-control" rows="5" id="actionContent" onchange="actionInfoChange()"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!--action over-->
+
+                    <!--显示决策信息-->
+                    <div class="row" id="decisionInfo" style="border: solid 1px">
+                        <div class="col-xs-6 col-md-4" style="margin-top: 10px">
+                            <form class="form-horizontal">
+                                <div class="form-group">
+                                    <label for="decisionName" class="col-sm-4 control-label">name</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="decisionName" onchange="decisionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="decisionCaption" class="col-sm-4 control-label">caption</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="decisionCaption" onchange="decisionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="decisionDescription" class="col-sm-4 control-label">description</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="decisionDescription" onchange="decisionInfoChange()">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="decisionPrecondition" class="col-sm-4 control-label">precondition</label>
+                                    <div class="col-sm-8">
+                                        <input type="text" class="form-control" id="decisionPrecondition" onchange="decisionInfoChange()">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
+                            <div class="panel panel-success">
+                                <div class="panel-heading" style="height: 40px">
+                                    <span style="float: left">decision information</span>
+                                    <span style="float: right"></span>
+                                </div>
+                                <div class="panel-body" style="padding: 0px">
+                                    <ul id="myTab" class="nav nav-tabs">
+                                        <li class="active">
+                                            <a href="#candidates" data-toggle="tab">Candidates</a>
+                                        </li>
+                                        <li class="dropdown">
+                                            <a href="#" id="myTabDrop1" class="dropdown-toggle"
+                                               data-toggle="dropdown">Arguments
+                                                <b class="caret"></b>
+                                            </a>
+                                            <ul class="dropdown-menu" role="menu" aria-labelledby="myTabDrop1" id="dropdownCandidate">
+                                                <!--下拉选项也是拼出来的-->
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                    <div id="myTabContent" class="tab-content">
+                                        <div class="tab-pane fade in active" id="candidates">
+                                            <table class="table table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>name</th>
+                                                        <th>caption</th>
+                                                        <th>priority</th>
+                                                        <th>
+                                                            <a id="candidatePlus" onclick="addCandidate()"><span class="glyphicon glyphicon-plus" aria-hidden="true"></span></a>
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="candidateList">
+                                                    <!--candidate的详细信息也是拼出来的-->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <!--argument的详细信息是拼出来的-->
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!--decision over-->
+                </div>
+
+
+            </div>
+        </div>
+
+        <!--右边-->
+        <div class="col-md-4">
+            .col-md-4
+        </div>
+
+    </div>
+</div>
+<!--主体部分结束-->
+
+<!--添加enquiry source的模态框-->
+<button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModal" id="showQuestionBox" style="display: none">
+    因为直接用jquery调用模态框出问题，所以调用按钮的点击事件触发模态框，当然使用代码来触发，而不是人去点，所以这个按钮是隐藏的
+</button>
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="myModalLabel">enquiry source input</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal">
+                    <div class="form-group">
+                        <label for="exampleInputName2" class="col-sm-2 control-label">name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName2">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName3" class="col-sm-2 control-label">caption</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName3">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName4" class="col-sm-2 control-label">data type</label>
+                        <div class="col-sm-10">
+                            <select class="form-control" id="exampleInputName4" onchange="typeSelect()">
+                                <option>text</option>
+                                <option>int</option>
+                                <option>double</option>
+                                <option>boolean</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="rangeBox">
+                        <label for="exampleInputName5" class="col-sm-2 control-label">range</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName5">
+                            <button type="button" class="btn btn-primary btn-xs" onclick="addValueToRangeList()">add</button>
+                            <button type="button" class="btn btn-primary btn-xs" onclick="removeValueFromRangeList()">remove</button>
+                            <select multiple class="form-control" id="rangeList">
+
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName6" class="col-sm-2 control-label">default value</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName6" placeholder="input an option in the List">
+                        </div>
+                    </div>
+                    <div class="form-group" id="selectModel">
+                        <label for="exampleInputName4" class="col-sm-2 control-label">select model</label>
+                        <div class="col-sm-10">
+                            <select class="form-control" id="exampleInputName8">
+                                <option>single</option>
+                                <option>multiple</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="cancelMyModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitMyModal()">提交</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+<!--添加candidate的模态框-->
+<button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myAddCandidate" id="showCandidateBox" style="display: none">因为一些原因，需要用到这个按钮的事件来触发模态框</button>
+<div class="modal fade" id="myAddCandidate" tabindex="-1" role="dialog" aria-labelledby="myAddCandidateLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="myAddCandidateLabel">candidate input</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal">
+                    <div class="form-group">
+                        <label for="candidateName" class="col-sm-2 control-label">name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="candidateName">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="candidateCaption" class="col-sm-2 control-label">caption</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="candidateCaption">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="candidatePriority" class="col-sm-2 control-label">priority</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="candidatePriority">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="cancelCandidateModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCandidateModal()">提交</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+
+<!-- 按钮触发模态框 -->
+<button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myAddArgument" id="showArgumentBox" style="display: none">手动触发模态框的按钮</button>
+<!-- 模态框（Modal） -->
+<div class="modal fade" id="myAddArgument" tabindex="-1" role="dialog" aria-labelledby="myAddArgumentLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="myAddArgumentLabel">input argument</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal">
+                    <div class="form-group">
+                        <label for="argumentName" class="col-sm-2 control-label">name</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="argumentName">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="argumentCaption" class="col-sm-2 control-label">caption</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="argumentCaption">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="argumentCondition" class="col-sm-2 control-label">condition</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="argumentCondition">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="argumentSupport" class="col-sm-2 control-label">support</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="argumentSupport">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="cancelAddArgument()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddArgument()">提交</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+
+
+</body>
+</html>
