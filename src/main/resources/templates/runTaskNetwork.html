@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>临床决策支持系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
+    <script>
+
+        var currentTask;//全局变量
+        /**
+         * 将enquiry任务的内容显示出来
+         * @param enquiryTask
+         */
+        function createEnquiryTaskContent(enquiryTask) {
+            currentTask = enquiryTask;
+            //先清空原来的内容
+            $("#enquiryTaskContent").empty();
+            var enquirySourceList = enquiryTask.enquiry_source;
+            for(var i=0;i<enquirySourceList.length;i++) {
+                var enquirySource = enquirySourceList[i];
+                var head = "<div class='form-group'>";
+                var title = "<label>"+i+"."+enquirySource.caption+"</label><br/>";
+                var foot = "</div><br/>";
+                if(enquirySource.data_type == "boolean") {
+                    var range = enquirySource.range;
+                    var body = "";
+                    for(var j=0;j<range.length;j++) {
+                        if(range[j] == enquirySource.default_value) {//将要生成的选项是默认值
+                            body += "<lable class='radio-inline'><input type='radio' name='"+enquirySource.name+"' id='"+enquirySource.name+"' value='"+range[j]+"' checked>"+range[j]+"</lable>";
+                        }else {//将要生成的选项不是默认值
+                            body += "<lable class='radio-inline'><input type='radio' name='"+enquirySource.name+"' id='"+enquirySource.name+"' value='"+range[j]+"'>"+range[j]+"</lable>";
+                        }
+                    }
+                    $("#enquiryTaskContent").append(head+title+body+foot);
+                }else if(enquirySource.data_type == "text") {
+                    var range = enquirySource.range;
+                    var body = "";
+                    for(var j=0;j<range.length;j++) {
+                        if(enquirySource.select_model == "single") {//单选
+                            if(range[j] == enquirySource.default_value) { //将要生成的选项是默认值
+                                body += "<label><input type='radio' name='"+enquirySource.name+"' id='"+enquirySource.name+"' value='"+range[j]+"' checked>"+range[j]+"</lable><br/>";
+                            } else {
+                                body += "<label><input type='radio' name='"+enquirySource.name+"' id='"+enquirySource.name+"' value='"+range[j]+"'>"+range[j]+"</lable><br/>";
+                            }
+                        }else {//否则就是多选，我也懒得判断了
+                            if(range[j] == enquirySource.default_value) { //将要生成的选项是默认值
+                                body += "<label><input type='checkbox' id='"+enquirySource.name+"' value='"+range[j]+"' checked>"+range[j]+"</lable><br/>";
+                            } else {
+                                body += "<label><input type='checkbox'  id='"+enquirySource.name+"' value='"+range[j]+"'>"+range[j]+"</lable><br/>";
+                            }
+                        }
+                    }
+                    $("#enquiryTaskContent").append(head+title+body+foot);
+                } else {//否则就是int或者double类型了
+                    var body = "<input type='text' class='form-control' id='"+enquirySource.name+"' value='"+enquirySource.default_value+"'>";
+                    $("#enquiryTaskContent").append(head+title+body+foot);
+                }
+            }
+            //添加提交和清除按钮
+            var btn = "<button type='button' class='btn btn-primary' onclick='submitEnquiryTaskContent()'>Submit</button><button type='button' class='btn btn-default' style='margin-left: 10px' onclick='resetEnquiryTaskContent()'>Reset</button>"
+            $("#enquiryTaskContent").append(btn);
+        }
+
+        /**
+         * 用户点击enquiry任务的重置按钮
+         */
+        function resetEnquiryTaskContent() {
+            var enquiryTask = currentTask;//将全局变量拿来用
+            createEnquiryTaskContent(enquiryTask);
+        }
+
+
+        /**
+         * 用户点击enquiry任务的提交按钮
+         */
+        function submitEnquiryTaskContent() {
+            var enquiryResultArr = collectEnquiryResult();
+            debugger;
+            console.log(enquiryResultArr);
+            var sendEnquiryResultArr = {};
+            sendEnquiryResultArr.data = "data";
+            sendEnquiryResultArr.enquiryResultArr = enquiryResultArr;
+            //将答案发送至后台
+            $.ajax({
+                url:"/cdss/submitEnquiryResult",
+                data:{"result":JSON.stringify(sendEnquiryResultArr)},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+
+                }
+            });
+        }
+
+        /**
+         * 收集用户填写的答案
+         */
+        function collectEnquiryResult() {
+            var enquiryResultArr = [];//有好多个问题
+            $("#enquiryTaskContent div").each(function (index,enquiryDiv) {
+                var result = {};//封装后台需要的答案数据
+                debugger;
+                console.log(enquiryDiv);
+                result.source_caption = enquiryDiv.children[0].textContent.split(".")[1];//将前面的序号去掉
+                result.result = "";
+                var inputItems = enquiryDiv.getElementsByTagName("input");
+                for(var i=0;i<inputItems.length;i++) {
+                    debugger;
+                    var inputItem = inputItems[i];
+                    console.log(inputItem);
+                    if(inputItem.getAttribute("type") == "radio" && inputItem.checked == true) {//当这个输入框是单选框，且被选中，那这就是用户的答案
+                        result.source_name = inputItem.getAttribute("id");
+                        result.result += inputItem.getAttribute("value");
+                        result.select_model = "single";//单选框就是单选
+                        result.node_id = currentTask.nodeId;//通过全局变量来知道该问题属于哪一个任务节点
+                    } else if(inputItem.getAttribute("type") == "text") {//当这个输入框是input
+                        result.source_name = inputItem.getAttribute("id");
+                        result.result += inputItem.getAttribute("value");
+                        result.select_model = "single";//单选框就是单选
+                        result.node_id = currentTask.nodeId;//通过全局变量来知道该问题属于哪一个任务节点
+                    } else if(inputItem.getAttribute("type") == "checkbox" && inputItem.checked == true) {//多选框
+                        result.source_name = inputItem.getAttribute("id");
+                        result.result += inputItem.getAttribute("value");
+                        result.result += ",";//结果用逗号分隔
+                        result.select_model = "multiple";//多选框就是多选
+                        result.node_id = currentTask.nodeId;//通过全局变量来知道该问题属于哪一个任务节点
+                    }
+                }
+                //到这里结果封装完成
+                enquiryResultArr.push(result);
+            });
+            //将结果返回出去
+            return enquiryResultArr;
+        }
+
+    </script>
+    <script>
+        $(document).ready(function(){
+            //页面一开始，需要从后台得到第一个任务
+            $.ajax({
+                url:"/cdss/getFristTask",
+                data:{},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+                    debugger;
+                    console.log(res);
+                    var taskType = res.task_type;
+                    if(taskType == "enquiry") {
+                        createEnquiryTaskContent(res);
+                    }
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+<!--导航栏部分开始-->
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="row" style="height:113px">
+            <div class="navbar-header col-md-4 col-md-offset-2">
+                <div class="header-left clearfix" style="margin-top:25px">
+                    <!-- logo -->
+                    <div class="logo smooth-scroll" style="float:left;wight:74px">
+                        <a href="#banner"><img id="logo" src="/images/logo_1.png" alt="Worthy"></a>
+                    </div>
+                    <!-- name-and-slogan -->
+                    <div class="site-name-and-slogan smooth-scroll" style="margin-top:15px">
+                        <div class="site-name"><a href="#banner">GMES</a></div>
+                        <div class="site-slogan"><a target="_blank" href="http://htmlcoder.me">Goal Management & Enactment System</a></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse col-md-6" id="bs-example-navbar-collapse-1" style="margin-top: 30px">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="#">Home <span class="sr-only">(current)</span></a></li>
+                    <li><a href="#">Decision</a></li>
+                    <li><a href="#">Guidelines</a></li>
+                    <li><a href="#">Knowledge</a></li>
+                    <li><a href="#">Reference</a></li>
+                    <li><a href="#">Login</a></li>
+                </ul>
+            </div><!-- /.navbar-collapse -->
+        </div>
+    </div><!-- /.container-fluid -->
+</nav>
+<!--导航栏部分结束-->
+<div class="space"></div>
+<div class="space"></div>
+<div class="space"></div>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-xs-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">process</h3>
+                </div>
+                <div class="panel-body">
+                    <form id="enquiryTaskContent">
+
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-xs-6">.col-xs-6</div>
+    </div>
+</div>
+</body>
+</html>
