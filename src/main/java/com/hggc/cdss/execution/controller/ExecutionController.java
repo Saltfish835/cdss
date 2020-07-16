@@ -2,6 +2,7 @@ package com.hggc.cdss.execution.controller;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.CollectionLikeType;
 import com.hggc.cdss.execution.service.ExecutionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -9,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Controller
@@ -49,20 +50,74 @@ public class ExecutionController {
 
 
     /**
-     * 用户的答案
-     * @param result
+     * 用户提交自己的答案
+     * 那么就代表这个任务已经完成
+     * @param resultStr
      * @return
      * @throws Exception
      */
     @RequestMapping("/submitEnquiryResult")
-    public @ResponseBody Map<String,Object> submitEnquiryResult(@RequestParam("result") String result) throws Exception{
-        System.out.println(result);
+    public @ResponseBody Map<String,Object> submitEnquiryResult(@RequestParam("resultList") String resultStr,@RequestParam("currentTaskId")int nodeId) throws Exception{
+        System.out.println(resultStr);
         //将字符串转换成对象数组
         ObjectMapper objectMapper = new ObjectMapper();
-        Map<String,Object> resultArr = new HashMap<String,Object>();
-        resultArr = objectMapper.readValue(objectMapper.writeValueAsString(result), Map.class);//将查出的结果封装成map集合
+        CollectionLikeType type = objectMapper.getTypeFactory().constructCollectionType(List.class,Map.class);
+        List<Map> resultArr = objectMapper.readValue(resultStr,type);
         System.out.println(resultArr);
-        return resultArr;
+        //将用户回答的结果存入数据库
+        executionService.saveEnuiryResult(resultArr);
+        //该任务已经完成，更改对应节点状态表的信息
+        executionService.updateStatusOfNodeByNodeId(nodeId,"completed");
+        //获取下一个要执行的任务，返回给前端
+        return executionService.getNextTasks(nodeId);
     }
+
+
+    /**
+     * 用户提交action任务
+     * @param nodeId
+     * @return
+     */
+    @RequestMapping("/submitActionTask")
+    public @ResponseBody Map<String,Object> submitActionTask(@RequestParam("currentTaskId") int nodeId)throws Exception {
+        //该节点已经完成，更改对应节点状态表中的信息
+        executionService.updateStatusOfNodeByNodeId(nodeId,"completed");
+        //获取下一个要执行的任务，返回给前端
+        return executionService.getNextTasks(nodeId);
+    }
+
+
+    /**
+     * 用户提交plan任务
+     * @param nodeId
+     * @return
+     * @throws Exception
+     */
+    @RequestMapping("/submitPlanTask")
+    public @ResponseBody Map<String,Object> submitPlanTask(@RequestParam("currentTaskId") int nodeId)throws Exception {
+        //该节点已经完成，更改对应节点状态表中的信息
+        executionService.updateStatusOfNodeByNodeId(nodeId,"completed");
+        //获取下一个要执行的任务，返回给前端
+        return executionService.getNextTasks(nodeId);
+    }
+
+
+
+
+    @RequestMapping("/submitDecisionTask")
+    public @ResponseBody Map<String,Object> submitDecisionTask(@RequestParam("decisionResult") String decisionResult,@RequestParam("currentNodeId") int nodeId) throws Exception{
+        System.out.println(decisionResult);
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, Object> decisionResultMap = objectMapper.readValue(decisionResult, Map.class);
+        //将结果存入数据库
+        executionService.saveDecisionResult(decisionResultMap);
+        //将这个节点的状态改变一下
+        executionService.updateStatusOfNodeByNodeId(nodeId,"completed");
+        //返回下一个任务
+        return executionService.getNextTasks(nodeId);
+    }
+
+
+
 
 }

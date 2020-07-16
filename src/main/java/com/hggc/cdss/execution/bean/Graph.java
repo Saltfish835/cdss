@@ -53,11 +53,11 @@ public class Graph {
      * 按下标返回节点的内容
      * 返回的是节点的内容
      * 节点在列表中的下标就是该节点在邻接矩阵中位置的表示
-     * @param i
+     * @param index
      * @return
      */
-    public Object getNodeByNodeIndex(int i) {
-        return nodeList.get(i);
+    public Object getNodeByNodeIndex(int index) {
+        return nodeList.get(index);
     }
 
 
