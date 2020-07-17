@@ -312,6 +312,11 @@
                 type:"POST",
                 success:function (res) {
                     console.log(res);
+                    if(res.code == 500) {
+                        alert(res.info);
+                        //刷新一下浏览器
+                        window.location.reload();
+                    }
                 }
             });
             //显示默认节点信息框
@@ -1101,10 +1106,6 @@
 
 
 
-
-
-
-
         /**
          * 更新节点的信息
          * 通过疾病名称找到表
@@ -1164,6 +1165,188 @@
         }
 
 
+        /**
+         * 编辑表达式的模态框显示方法
+         *  position代表是从哪个位置打开的这个模态框
+         *
+         */
+        var position = "";//需要将值保存到哪个位置
+        function showConditionEdit(positionPara) {
+            //得到疾病名称
+            var disease = $("#services").text();
+            position = positionPara;
+            //把原来的条件拿出来，显示在模态框的条件输入框内
+            $("#conditionExpress").val($("#"+positionPara).val());
+            //从后台获取一些值
+            $.ajax({
+                url:"/cdss/getEnquiryAndDecision",
+                data:{"diseaseName":disease},
+                dataType:"json",
+                type:"POST",
+                success:function(res) {
+                    debugger;
+                    console.log(res);
+                    //将数据展示到模态框上
+                    for(var i=0;i<res.length;i++) {
+                        var task = res[i];
+                        //判断是什么任务
+                        if(task.task_type == "enquiry") {//如果是enquiry任务
+                            //得到enquiry_source
+                            var enquirySources = task.enquiry_source;
+                            for(var j=0;j<enquirySources.length;j++) {
+                                var enquirySource = enquirySources[j];
+                                var head = "<tr>";
+                                var cell1 = "<td><button type='button' class='btn btn-default' onclick='addOperation()'>"+enquirySource.name+"</button></td>";
+                                var cell2 = "<td>"+enquirySource.caption+"</td>";
+                                var cell3 = "<td>"+task.task_type+"</td>";
+                                var cell4 = "<td>"+enquirySource.data_type+"</td>";
+                                var rangeValues = enquirySource.range;
+                                var opations = "<option>----</option>";
+                                for(var k=0;k<rangeValues.length;k++) {
+                                    opations += "<option value='"+rangeValues[k]+"'>"+rangeValues[k]+"</option>";
+                                }
+                                var cell5_1 = "<td><select class='form-control' onchange='addAnswer()'>";
+                                var cell5_2 = "</select></td>";
+                                var cell5 = cell5_1+opations+cell5_2;
+                                var foot = "</tr>";
+                                //将值拼接到表格中去
+                                $("#showConditionContent").append(head+cell1+cell2+cell3+cell4+cell5+foot);
+                            }
+                        }else if(task.task_type == "decision") {//如果是decision任务
+                            var head = "<tr>";
+                            var cell1 = "<td><button type='button' class='btn btn-default' onclick='addOperation()'>"+task.name+"</button></td>";
+                            var cell2 = "<td>"+task.caption+"</td>";
+                            var cell3 = "<td>"+task.task_type+"</td>";
+                            var cell4 = "<td>"+"text"+"</td>";
+                            var opations = "<option>----</option>";
+                            //得到candidates
+                            var candidates = task.candidates;
+                            for(var j=0;j<candidates.length;j++) {
+                                var candidate = candidates[j];
+                                opations += "<option value='"+candidate.name+"'>"+candidate.name+"</option>";
+                            }
+                            var cell5_1 = "<td><select class='form-control' onchange='addAnswer()'>";
+                            var cell5_2 = "</select></td>";
+                            var cell5 = cell5_1+opations+cell5_2;
+                            var foot = "</tr>";
+                            //将值拼接到表格中去
+                            $("#showConditionContent").append(head+cell1+cell2+cell3+cell4+cell5+foot);
+                        }
+                    }
+                }
+            });
+            $("#showConditionEditBox").click()
+        }
+
+
+        /**
+         * 清空条件编辑模态框
+         */
+        function emptyConditionEdit() {
+            $("#conditionExpress").val("");
+            $("#showConditionContent").empty();
+        }
+
+
+
+        /**
+         * 用户点击条件编辑模态框的取消按钮
+         */
+        function cancelConditionEdit() {
+            //清空模态框框的内容
+            emptyConditionEdit();
+            //隐藏模态框
+            $('#myModalPrecondition').modal('hide');
+        }
+
+
+        /**
+         * 用户点击条件编辑模态框的提交按钮
+         */
+        function suubmitConditionEdit() {
+            var expression = $("#conditionExpress").val();//先把模态框中的值取出来
+            //将条件添加到对应的地方
+            $("#"+position).val(expression);
+            //还需要手动将内容保存到数据库
+            debugger;
+            $("#"+position).trigger("onchange");
+            //var onchange = $("#"+position).attr("onchange");
+            //清空模态框框的内容
+            emptyConditionEdit();
+            //隐藏模态框
+            $('#myModalPrecondition').modal('hide');
+        }
+
+
+        /**
+         * 用户点击添加操作符按钮
+         */
+        function addOperation(event) {
+            debugger;
+            //因为参数不好传递，只好通过event对象来获取所需数据
+            event = event||window.event;//获取到这个函数的触发事件
+            console.log(event);
+            //拿到按钮的值
+            var operation = event.currentTarget.textContent;
+            //插入这个值
+            $("#conditionExpress").insertAtCaret(operation);
+        }
+
+
+        /**
+         * 用户点击range下面的下拉列表
+         */
+        function addAnswer(event) {
+            debugger;
+            //因为参数不好传递，只好通过event对象来获取所需数据
+            event = event||window.event;//获取到这个函数的触发事件
+            console.log(event);
+            var answer;
+            var options = event.currentTarget.childNodes;
+            for(var i=0;i<options.length;i++) {
+                var option = options[i];
+                if(option.selected == true) {
+                    answer = option.value;
+                    break;
+                }
+            }
+            //插入这个值
+            $("#conditionExpress").insertAtCaret(answer);
+        }
+
+
+
+        /**
+         * 向光标指定位置插入数据
+         */
+        (function ($) {
+            $.fn.extend({
+                insertAtCaret: function (myValue) {
+                    var $t = $(this)[0];
+                    if (document.selection) {
+                        this.focus();
+                        sel = document.selection.createRange();
+                        sel.text = myValue;
+                        this.focus();
+                    }
+                    else
+                    if ($t.selectionStart || $t.selectionStart == '0') {
+                        var startPos = $t.selectionStart;
+                        var endPos = $t.selectionEnd;
+                        var scrollTop = $t.scrollTop;
+                        $t.value = $t.value.substring(0, startPos) + myValue + $t.value.substring(endPos, $t.value.length);
+                        this.focus();
+                        $t.selectionStart = startPos + myValue.length;
+                        $t.selectionEnd = startPos + myValue.length;
+                        $t.scrollTop = scrollTop;
+                    }
+                    else {
+                        this.value += myValue;
+                        this.focus();
+                    }
+                }
+            })
+        })(jQuery);
     </script>
     <script th:inline="javascript">
         $(document).ready(function(){
@@ -1241,7 +1424,7 @@
     <div class="space"></div>
     <div class="row">
         <!--左边-->
-        <div class="col-md-6 col-md-offset-1">
+        <div class="col-md-8">
             <div id="sample">
                 <div style="white-space:nowrap;">
                     <!--左边部分-->
@@ -1253,10 +1436,11 @@
                       <div id="myDiagramDiv" style="border: solid 1px black; height: 400px"></div>
                     </span>
                     <div>
-                        <button id="SaveButton" onclick="save()" type="button" class="btn btn-primary btn-sm">Save</button>
-                        <button type="button" class="btn btn-default btn-sm" onclick="load()">Load</button>
-                        <a class="btn btn-success btn-sm" href="#" id="runBtn" role="button" target="_blank">run</a>
-                        <span>  [删除节点后请手动保存任务图]</span>
+                        <div class="btn-group" role="group" aria-label="...">
+                            <button id="SaveButton" onclick="save()" type="button" class="btn btn-primary btn-sm">Save</button>
+                            <button type="button" class="btn btn-default btn-sm" onclick="load()">Load</button>
+                            <a class="btn btn-success btn-sm" href="#" id="runBtn" role="button" target="_blank">run</a>
+                        </div>
                     </div>
                     <textarea id="mySavedModel" style="width:100%;height:300px">
                     { "class": "go.GraphLinksModel",
@@ -1269,9 +1453,9 @@
                     </textarea>
                 </div>
                 <!--显示节点细节-->
-                <div style="margin-top: 10px;width: 100%">
+                <div style="width: 100%">
                     <!--显示默认信息-->
-                    <div class="row" id="defaultInfo" style="border: solid 1px">
+                    <div class="row" id="defaultInfo" style="">
                         <div class="col-xs-6 col-md-4" style="margin-top: 10px">
                             <form class="form-horizontal">
                                 <div class="form-group">
@@ -1295,13 +1479,18 @@
                                 <div class="form-group">
                                     <label for="inputPassword5" class="col-sm-4 control-label">precondition</label>
                                     <div class="col-sm-8">
-                                        <input type="text" class="form-control" id="inputPassword5">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="inputPassword5">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button">edit!</button>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
                         <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
-                            <div class="panel panel-default" style="overflow: scroll;height: 250px">
+                            <div class="panel panel-danger" style="overflow: scroll;height: 230px">
                                 <div class="panel-heading" style="height: 40px">
                                     <span style="float: left">node information</span>
                                     <span style="float: right"></span>
@@ -1314,7 +1503,7 @@
                     </div><!--default over-->
 
                     <!--显示问询信息-->
-                    <div class="row" id="enquiryInfo" style="border: solid 1px">
+                    <div class="row" id="enquiryInfo" style="">
                         <div class="col-xs-6 col-md-4" style="margin-top: 10px">
                             <form class="form-horizontal">
                                 <div class="form-group">
@@ -1338,13 +1527,19 @@
                                 <div class="form-group">
                                     <label for="enquiryPrecondition" class="col-sm-4 control-label">precondition</label>
                                     <div class="col-sm-8">
-                                        <input type="text" class="form-control" id="enquiryPrecondition" onchange="enquiryInfoChange()">
+                                        <!--<input type="text" class="form-control" id="enquiryPrecondition" onchange="enquiryInfoChange()">-->
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="enquiryPrecondition" onchange="enquiryInfoChange()">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button" onclick="showConditionEdit('enquiryPrecondition')">edit</button>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
                         <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
-                            <div class="panel panel-info" style="overflow: scroll;height: 250px">
+                            <div class="panel panel-info" style="overflow: scroll;height: 230px">
                                 <div class="panel-heading" style="height: 40px">
                                     <span style="float: left">enquiry source</span>
                                     <span style="float: right">
@@ -1373,7 +1568,7 @@
                     </div><!--enquiry over-->
 
                     <!--显示计划信息-->
-                    <div class="row" id="planInfo" style="border: solid 1px">
+                    <div class="row" id="planInfo" style="">
                         <div class="col-xs-6 col-md-4" style="margin-top: 10px">
                             <form class="form-horizontal">
                                 <div class="form-group">
@@ -1397,13 +1592,19 @@
                                 <div class="form-group">
                                     <label for="planPrecondition" class="col-sm-4 control-label">precondition</label>
                                     <div class="col-sm-8">
-                                        <input type="text" class="form-control" id="planPrecondition" onchange="planInfoChange()">
+<!--                                        <input type="text" class="form-control" id="planPrecondition" onchange="planInfoChange()">-->
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="planPrecondition" onchange="planInfoChange()">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button" onclick="showConditionEdit('planPrecondition')">edit</button>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
                         <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
-                            <div class="panel panel-warning" style="overflow: scroll;height: 250px;">
+                            <div class="panel panel-warning" style="overflow: scroll;height: 230px;">
                                 <div class="panel-heading" style="height: 40px">
                                     <span style="float: left">plan content</span>
                                     <span style="float: right"></span>
@@ -1416,7 +1617,7 @@
                     </div><!--plan over-->
 
                     <!--显示活动信息-->
-                    <div class="row" id="actionInfo" style="border: solid 1px">
+                    <div class="row" id="actionInfo" style="">
                         <div class="col-xs-6 col-md-4" style="margin-top: 10px">
                             <form class="form-horizontal">
                                 <div class="form-group">
@@ -1440,13 +1641,19 @@
                                 <div class="form-group">
                                     <label for="actionPrecondition" class="col-sm-4 control-label">precondition</label>
                                     <div class="col-sm-8">
-                                        <input type="text" class="form-control" id="actionPrecondition" onchange="actionInfoChange()">
+<!--                                        <input type="text" class="form-control" id="actionPrecondition" onchange="actionInfoChange()">-->
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="actionPrecondition" onchange="actionInfoChange()">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button" onclick="showConditionEdit('actionPrecondition')">edit</button>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
                         <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
-                            <div class="panel panel-default" style="overflow: scroll;height: 250px;">
+                            <div class="panel panel-default" style="overflow: scroll;height: 230px;">
                                 <div class="panel-heading" style="height: 40px;">
                                     <span style="float: left">action content</span>
                                     <span style="float: right"></span>
@@ -1459,7 +1666,7 @@
                     </div><!--action over-->
 
                     <!--显示决策信息-->
-                    <div class="row" id="decisionInfo" style="border: solid 1px">
+                    <div class="row" id="decisionInfo" style="">
                         <div class="col-xs-6 col-md-4" style="margin-top: 10px">
                             <form class="form-horizontal">
                                 <div class="form-group">
@@ -1483,13 +1690,19 @@
                                 <div class="form-group">
                                     <label for="decisionPrecondition" class="col-sm-4 control-label">precondition</label>
                                     <div class="col-sm-8">
-                                        <input type="text" class="form-control" id="decisionPrecondition" onchange="decisionInfoChange()">
+<!--                                        <input type="text" class="form-control" id="decisionPrecondition" onchange="decisionInfoChange()">-->
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="decisionPrecondition" onchange="decisionInfoChange()">
+                                            <span class="input-group-btn">
+                                                <button class="btn btn-default" type="button" onclick="showConditionEdit('decisionPrecondition')">edit</button>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
                         </div>
                         <div class="col-xs-12 col-sm-6 col-md-8" style="margin-top: 10px">
-                            <div class="panel panel-success" style="height: 250px;overflow: scroll">
+                            <div class="panel panel-success" style="height: 230px;overflow: scroll">
                                 <div class="panel-heading" style="height: 40px">
                                     <span style="float: left">decision information</span>
                                     <span style="float: right"></span>
@@ -1686,7 +1899,13 @@
                     <div class="form-group">
                         <label for="argumentCondition" class="col-sm-2 control-label">condition</label>
                         <div class="col-sm-10">
-                            <input type="text" class="form-control" id="argumentCondition">
+<!--                            <input type="text" class="form-control" id="argumentCondition">-->
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="argumentCondition">
+                                <span class="input-group-btn">
+                                    <button class="btn btn-default" type="button" onclick="showConditionEdit('argumentCondition')">edit</button>
+                                </span>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1704,6 +1923,96 @@
         </div><!-- /.modal-content -->
     </div><!-- /.modal -->
 </div>
+
+
+<!-- 按钮触发模态框 -->
+<button class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModalPrecondition" id="showConditionEditBox" style="display: none">手动触发这个按钮</button>
+<!-- 模态框（Modal） -->
+<div class="modal fade bs-example-modal-lg" id="myModalPrecondition" tabindex="-1" role="dialog" aria-labelledby="myModalPreconditionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="myModalPreconditionLabel">condition edit</h4>
+            </div>
+            <div class="modal-body container-fluid" style="padding-top: 0px;padding-bottom: 0px">
+                <!--表达式-->
+                <div class="row">
+                    <textarea class="form-control" rows="3" id="conditionExpress"></textarea>
+                </div>
+                <!--操作符-->
+                <div class="row">
+                    <div class="btn-group btn-group-justified" role="group" aria-label="...">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-default" onclick="addOperation()">.equals()</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--数值相等-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">==</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--数值大于-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">&gt;=</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--数值小于-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">&lt;=</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--数值小于-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">&gt;</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--数值小于-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">&lt;</button>
+                        </div>
+                    </div>
+                    <div class="btn-group btn-group-justified" role="group" aria-label="...">
+                        <div class="btn-group" role="group"><!--数值不相等-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">!=</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--与-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">&&</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--或-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">||</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--非-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">!</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--非-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">""</button>
+                        </div>
+                        <div class="btn-group" role="group"><!--非-->
+                            <button type="button" class="btn btn-default" onclick="addOperation()">()</button>
+                        </div>
+                    </div>
+                </div>
+                <!--enquiry和candidate数据-->
+                <div class="row">
+                    <div class="panel panel-default"  style="overflow: scroll;height: 500px">
+                        <div class="panel-heading">you can choose content</div>
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>name</th>
+                                <th>caption</th>
+                                <th>task type</th>
+                                <th>data type</th>
+                                <th>range</th>
+                            </tr>
+                            </thead>
+                            <tbody id="showConditionContent">
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="cancelConditionEdit()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="suubmitConditionEdit()">提交</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+
+
 
 
 

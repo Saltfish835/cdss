@@ -42,7 +42,7 @@ public class EditService {
         //指定查询过滤器
         Bson filter = Filters.eq("disease_name", disease);
         //指定查询过滤器查询
-        FindIterable findIterable = collection.find(filter).projection(new BasicDBObject("task_network",1));//只查出task_network这个字段
+        FindIterable findIterable = collection.find(filter).projection(new BasicDBObject("task_network",1));//只查出task_network这个字段,其实还有id这个字段
         MongoCursor cursor = findIterable.iterator();
         Map<String,Object> network = new HashMap<String,Object>();
         while (cursor.hasNext()) {
@@ -128,25 +128,7 @@ public class EditService {
      * @throws Exception
      */
     public Map getNodeInfoByDiseaseAndId(String disease,int nodeId) throws Exception{
-        ObjectMapper objectMapper = new ObjectMapper();
-        //得到mongodb的连接
-        MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
-        //获取集合，相当于指定表
-        MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
-
-        //查询条件
-        BasicDBObject query = new BasicDBObject();
-        query.put("disease_name",disease);
-        //指定查询过滤器查询
-        FindIterable findIterable = collection.find(query).projection(new BasicDBObject("task_table",1));//只查出task_table这个字段
-        MongoCursor cursor = findIterable.iterator();
-        //先查出整个task_table
-        Map<String,Object> task_table = new HashMap<String,Object>();
-        while (cursor.hasNext()) {
-            task_table = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
-        }
-        //然后根据nodeId找到对应的task
-        List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");
+        List<Map<String,Object>> taskList = this.getAllTask(disease);
         Map<String,Object> node = new HashMap<>();
         for(Map<String,Object> map:taskList) {
             if((int)map.get("nodeId") == nodeId) {
@@ -162,20 +144,7 @@ public class EditService {
         MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
         //获取集合，相当于指定表
         MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
-        //先查出task_table的全部信息
-        //查询条件
-        BasicDBObject query = new BasicDBObject();
-        query.put("disease_name",disease);
-        //指定查询过滤器查询
-        FindIterable findIterable = collection.find(query).projection(new BasicDBObject("task_table",1));//只查出task_table这个字段
-        MongoCursor cursor = findIterable.iterator();
-        //先查出整个task_table
-        Map<String,Object> task_table = new HashMap<String,Object>();
-        while (cursor.hasNext()) {
-            task_table = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
-        }
-        //遍历task_table
-        List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");
+        List<Map<String,Object>> taskList = this.getAllTask(disease);
         int sign = 99999;//用于记录用户点击的那个节点存在task_table的哪个位置
         for(int i=0;i<taskList.size();i++) {
             Map node = taskList.get(i);
@@ -197,4 +166,55 @@ public class EditService {
         //再更新到数据库里面去
         collection.updateMany(Filters.eq("disease_name",disease),new Document("$set",new Document("task_table",taskList)));
     }
+
+
+    /**
+     * 拿到所有decision和enquiry类型的任务
+     * @param disease
+     * @return
+     * @throws Exception
+     */
+    public List<Map<String,Object>> getEnquiryAndDecision(String disease) throws Exception{
+        List<Map<String,Object>> taskList = this.getAllTask(disease);
+        List<Map<String,Object>> enquiryAndDecisionTaskList = new ArrayList<>();
+        //从中拿出enquiry和decision类型的任务
+        for(Map<String,Object> task:taskList) {
+            if(((String)task.get("task_type")).equals("decision") || ((String)task.get("task_type")).equals("enquiry")) {
+                enquiryAndDecisionTaskList.add(task);
+            }
+        }
+        return enquiryAndDecisionTaskList;
+    }
+
+
+    /**
+     * 得到所有任务
+     * @param diseaseName
+     * @return
+     * @throws Exception
+     */
+    public List<Map<String,Object>> getAllTask(String diseaseName)throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        //得到mongodb的连接
+        MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
+        //获取集合，相当于指定表
+        MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
+        //先查出task_table的全部信息
+        //查询条件
+        BasicDBObject query = new BasicDBObject();
+        query.put("disease_name",diseaseName);
+        //指定查询过滤器查询
+        FindIterable findIterable = collection.find(query).projection(new BasicDBObject("task_table",1));//只查出task_table这个字段
+        MongoCursor cursor = findIterable.iterator();
+        //先查出整个task_table
+        Map<String,Object> task_table = new HashMap<String,Object>();
+        while (cursor.hasNext()) {
+            task_table = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
+        }
+        //遍历task_table
+        List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");
+        return taskList;
+    }
+
+
 }

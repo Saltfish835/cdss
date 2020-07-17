@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 
+import java.util.List;
 import java.util.Map;
 
 @Controller
@@ -65,11 +66,19 @@ public class EditController {
      * @return
      */
     @RequestMapping("/saveNetworkToDB")
-    public @ResponseBody MyMessage saveNetworkToDB(@RequestParam("disease")String disease, @RequestParam("task_network")String task_network) throws Exception{
+    public @ResponseBody MyMessage saveNetworkToDB(@RequestParam("disease")String disease, @RequestParam("task_network")String task_network){
+        MyMessage msg = new MyMessage();
         System.out.println(disease);
         System.out.println(task_network);
-        editService.updateNetwork(disease,task_network);
-        MyMessage msg = new MyMessage();
+        try{
+            editService.updateNetwork(disease,task_network);
+        }catch (Exception indexOut) {
+            msg.setCode(500);
+            msg.setInfo("一次只能删除一个节点");
+            //如果原来的更新出现问题，就把之间的旧值重新赋值回去
+
+        }
+
         return msg;
     }
 
@@ -104,5 +113,21 @@ public class EditController {
         editService.updateNodeInfo(disease,nodeId,newNodeInfo);
         return msg;
     }
+
+
+    /**
+     * 得到所有enquiry任务和decision任务的信息
+     * @return
+     */
+    @RequestMapping("/getEnquiryAndDecision")
+    public @ResponseBody List<Map<String,Object>> getEnquiryAndDecision(@RequestParam("diseaseName") String diseaseName) throws Exception {
+        System.out.println(diseaseName);
+        return editService.getEnquiryAndDecision(diseaseName);
+    }
+
+
+
+
+
 
 }
