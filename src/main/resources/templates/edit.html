@@ -242,14 +242,12 @@
 
 
         function TopRotatingTool() {
-            debugger;
             go.RotatingTool.call(this);
         }
         go.Diagram.inherit(TopRotatingTool, go.RotatingTool);
 
         /** @override */
         TopRotatingTool.prototype.updateAdornments = function(part) {
-            debugger;
             go.RotatingTool.prototype.updateAdornments.call(this, part);
             var adornment = part.findAdornment("Rotating");
             if (adornment !== null) {
@@ -260,7 +258,6 @@
 
         /** @override */
         TopRotatingTool.prototype.rotate = function(newangle) {
-            debugger;
             go.RotatingTool.prototype.rotate.call(this, newangle + 90);
         };
         // end of TopRotatingTool class
@@ -268,7 +265,6 @@
 
         // Show the diagram's model in JSON format that the user may edit
         function save() {
-            debugger;
             saveDiagramProperties();  // do this first, before writing to JSON
             document.getElementById("mySavedModel").value = myDiagram.model.toJson();
             myDiagram.isModified = false;
@@ -276,17 +272,14 @@
             saveNetworkToDB();
         }
         function load() {
-            debugger;
             myDiagram.model = go.Model.fromJson(document.getElementById("mySavedModel").value);
             loadDiagramProperties();  // do this after the Model.modelData has been brought into memory
         }
 
         function saveDiagramProperties() {
-            debugger;
             myDiagram.model.modelData.position = go.Point.stringify(myDiagram.position);
         }
         function loadDiagramProperties(e) {
-            debugger;
             // set Diagram.initialPosition, not Diagram.position, to handle initialization side-effects
             var pos = myDiagram.model.modelData.position;
             if (pos) myDiagram.initialPosition = go.Point.parse(pos);
@@ -298,10 +291,8 @@
          * 只要是系统中出现的疾病，都默认在数据库中有对应的数据结构，所以这里只进行数据更新，而不进行创建操作
          */
         function saveNetworkToDB() {
-            debugger;
             //得到任务网络
-            var task_network = $("#mySavedModel").val();
-            console.log(task_network);
+            var task_network = $("#mySavedModel").val();//得到的只有图的信息
             //得到疾病名称
             var disease = $("#services").text();
             //发送至后台处理
@@ -328,7 +319,6 @@
          * @param nodeType
          */
         function showNodeInfo(nodeType) {
-            debugger;
             if(nodeType == "defaultInfo") {//显示默认的信息显示框
                 $("#defaultInfo").show();
                 $("#enquiryInfo").hide();
@@ -400,7 +390,6 @@
                     dataType:"json",
                     type:"POST",
                     success:function (res) {
-                        debugger;
                         console.log(res);
                         //传过来的是一个map集合，判断是为为空不能用==
                         if(JSON.stringify(res) == "{}") {
@@ -435,7 +424,6 @@
                     dataType:"json",
                     type:"POST",
                     success:function (res) {
-                        debugger;
                         console.log(res);
                         //传过来的是一个map集合，判断是为为空不能用==
                         if(JSON.stringify(res) == "{}") {
@@ -464,7 +452,6 @@
                     dataType:"json",
                     type:"POST",
                     success:function (res) {
-                        debugger;
                         console.log(res);
                         //传过来的是一个map集合，判断是为为空不能用==
                         if(JSON.stringify(res) == "{}") {
@@ -525,7 +512,6 @@
                     dataType:"json",
                     type:"POST",
                     success:function (res) {
-                        debugger;
                         console.log(res);
                         //传过来的是一个map集合，判断是为为空不能用==
                         if(JSON.stringify(res) == "{}") {
@@ -621,7 +607,6 @@
          *
          */
         function getDecisionInfo() {
-            debugger;
             var decisionInfo = {};
             //先得到节点的通用信息
             decisionInfo.task_type = "decision";
@@ -633,7 +618,6 @@
             decisionInfo.candidates = [];
             //封装candidate数据
             $("#candidateList tr").each(function (index,tr) {
-                debugger;
                 console.log(tr);
                 var tds = tr.children;
                 var candidateTemp = {};
@@ -643,7 +627,6 @@
                 candidateTemp.arguments = [];
                 //得到argument
                 $("#"+tds[0].textContent+" table tbody tr").each(function (index1,tr1) {
-                    debugger;
                     console.log(tr1);
                     var argument = {};
                     var tds = tr1.children;
@@ -656,7 +639,6 @@
                 decisionInfo.candidates.push(candidateTemp);
             });
             //看一下结果
-            debugger;
             console.log(decisionInfo);
             return decisionInfo;
         }
@@ -732,7 +714,6 @@
          *
          */
         function deleteCandidate(event) {
-            debugger;
             //因为参数不好传递，只好通过event对象来获取所需数据
             event = event||window.event;//获取到这个函数的触发事件
             console.log(event);
@@ -770,9 +751,13 @@
          */
         var candidateName;
         function addArgument(argumentPanel) {
-            debugger;
             console.log(argumentPanel);
             candidateName = argumentPanel.id;//将argument name存起来
+            //为模态框中的argument name赋个初值
+            var uuid = this.uuid();//产生uuid
+            var argumentName = candidateName+"_Arg_"+uuid.substring(0,4);//自动生成argumentName
+            //将值放到模态框中去
+            $("#argumentName").val(argumentName);
             //弹出一个收集用户输入的argument的模态框
             $("#showArgumentBox").click();
         }
@@ -834,7 +819,6 @@
          *
          */
         function deleteArgument(event) {
-            debugger;
             //因为参数不好传递，只好通过event对象来获取所需数据
             event = event||window.event;//获取到这个函数的触发事件
             console.log(event);
@@ -852,7 +836,6 @@
          * 用户enquiry source点击加号，为某节点添加问题
          */
         function addEnquirySource() {
-            debugger;
             //全局变量nodeId记录的是当前用户点击的节点
             //弹出一个框，用于收集用户填写的问题信息
             $("#showQuestionBox").click();
@@ -934,7 +917,6 @@
          * 用户点击range下的remove按钮，将值从rangeList中移除
          */
         function removeValueFromRangeList() {
-            debugger;
             //首先取到rangeList中的值
             var rangeListValue = $("#rangeList").val();
             if(rangeListValue == "" || rangeListValue == null) {
@@ -992,7 +974,6 @@
          * 用户在enquiry source列表中点删除
          */
         function minusEnquirySource() {
-            debugger;
             //得到问题表格中所有的checkBox
             var checkboxs = $("#enquiryDataSource tr td input");
             var questionNameList = [];
@@ -1035,7 +1016,6 @@
         function actionInfoChange() {
             //获得整个action的全部信息
             var actionInfo = getActionInfo();
-            console.log(actionInfo);
             var disease = $("#services").text();//得到疾病名称
             //发送给后台更新(nodeId是全局变量)
             updateNodeInfo(disease,nodeId,JSON.stringify(actionInfo));
@@ -1058,7 +1038,6 @@
             //清除action的content
             actionInfo.content = $("#actionContent").val();
             //看一下最后的结果
-            debugger;
             console.log(actionInfo);
             return actionInfo;
         }
@@ -1088,7 +1067,6 @@
          *
          */
         function getPlanInfo() {
-            debugger;
             var planInfo = {};
             planInfo.task_type = "plan";
             planInfo.nodeId = nodeId;
@@ -1099,7 +1077,6 @@
             //清除action的content
             planInfo.content = $("#planContent").val();
             //看一下最后的结果
-            debugger;
             console.log(planInfo);
             return planInfo;
         }
@@ -1113,16 +1090,29 @@
          *
          */
         function updateNodeInfo(disease,nodeId,newNodeInfo) {
-            //先保存任务网络
-            save();
-            console.log(newNodeInfo);
+            //更新节点之前，首先需要判断该节点是否在task_table中，如果不存在，则不允许更新
             $.ajax({
-                url:"/cdss/updateNodeInfo",
-                data:{"disease":disease,"nodeId":nodeId,"newNodeInfo":newNodeInfo},
+                url:"/cdss/getNodeInfoByDiseaseAndId",
+                data:{"disease":disease,"nodeId":nodeId},
                 dataType:"json",
                 type:"POST",
                 success:function (res) {
+                    if(JSON.stringify(res) == "{}") {//返回一个空map，说明没有这个节点的信息
+                        //给出提示信息，然后直接退出
+                        alert("请先保存任务网络");//这里可以用代码调用方法保存任务网络，但是会出现莫名其妙的问题，所以还是需要用户手动保存
+                        window.location.reload();//刷新页面
+                        return;
+                    } else {//如果这个节点还存在，就更新
+                        $.ajax({
+                            url:"/cdss/updateNodeInfo",
+                            data:{"disease":disease,"nodeId":nodeId,"newNodeInfo":newNodeInfo},
+                            dataType:"json",
+                            type:"POST",
+                            success:function (res) {
 
+                            }
+                        });
+                    }
                 }
             });
         }
@@ -1132,7 +1122,6 @@
          * 得到enquiryInfo这个里面的说有数据
          */
         function getEnuiryInfo() {
-            debugger;
             var enquiryInfo = {};
             enquiryInfo.task_type = "enquiry";
             enquiryInfo.nodeId = nodeId;
@@ -1143,8 +1132,6 @@
             enquiryInfo.enquiry_source = [];
             //通过遍历得到enquiry source的数据
             $("#enquiryDataSource tr").each(function (index,tr) {
-                debugger;
-                console.log(tr);
                 var tds = tr.children;
                 var sourceTemp = {};//封装source的临时变量
                 sourceTemp.name = tds[1].textContent;
@@ -1158,9 +1145,6 @@
                 //将source添加到enquiryInfo里面去
                 enquiryInfo.enquiry_source.push(sourceTemp);
             });
-            //看一下最后的结果
-            debugger;
-            console.log(enquiryInfo);
             return enquiryInfo;
         }
 
@@ -1184,7 +1168,6 @@
                 dataType:"json",
                 type:"POST",
                 success:function(res) {
-                    debugger;
                     console.log(res);
                     //将数据展示到模态框上
                     for(var i=0;i<res.length;i++) {
@@ -1266,9 +1249,8 @@
         function suubmitConditionEdit() {
             var expression = $("#conditionExpress").val();//先把模态框中的值取出来
             //将条件添加到对应的地方
-            $("#"+position).val(expression);
+            $("#"+position).val(chineseChar2englishChar(expression));//如果expression中有中文符号，则全部变成英文
             //还需要手动将内容保存到数据库
-            debugger;
             $("#"+position).trigger("onchange");
             //var onchange = $("#"+position).attr("onchange");
             //清空模态框框的内容
@@ -1282,7 +1264,6 @@
          * 用户点击添加操作符按钮
          */
         function addOperation(event) {
-            debugger;
             //因为参数不好传递，只好通过event对象来获取所需数据
             event = event||window.event;//获取到这个函数的触发事件
             console.log(event);
@@ -1297,7 +1278,6 @@
          * 用户点击range下面的下拉列表
          */
         function addAnswer(event) {
-            debugger;
             //因为参数不好传递，只好通过event对象来获取所需数据
             event = event||window.event;//获取到这个函数的触发事件
             console.log(event);
@@ -1314,6 +1294,40 @@
             $("#conditionExpress").insertAtCaret(answer);
         }
 
+
+
+        /**
+         * 产生uuid
+         */
+        function uuid() {
+            var s = [];
+            var hexDigits = "0123456789abcdef";
+            for (var i = 0; i < 36; i++) {
+                s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
+            }
+            s[14] = "4"; // bits 12-15 of the time_hi_and_version field to 0010
+            s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1); // bits 6-7 of the clock_seq_hi_and_reserved to 01
+            s[8] = s[13] = s[18] = s[23] = "-";
+
+            var uuid = s.join("");
+            return uuid;
+        }
+
+
+
+
+        /**
+         * 将中文符号转换成英文符号
+         */
+        function chineseChar2englishChar(chineseChar){
+            // 将单引号‘’都转换成'，将双引号“”都转换成"
+            var str = chineseChar.replace(/\’|\‘/g,"'").replace(/\“|\”/g,"\"");
+            // 将中括号【】转换成[]，将大括号｛｝转换成{}
+            str = str.replace(/\【/g,"[").replace(/\】/g,"]").replace(/\｛/g,"{").replace(/\｝/g,"}");
+            // 将逗号，转换成,，将：转换成:
+            str = str.replace(/，/g,",").replace(/：/g,":");
+            return str;
+        }
 
 
         /**
@@ -1347,6 +1361,12 @@
                 }
             })
         })(jQuery);
+
+
+
+
+
+
     </script>
     <script th:inline="javascript">
         $(document).ready(function(){
@@ -1366,7 +1386,6 @@
                 dataType:"json",
                 type:"POST",
                 success:function (res) {
-                    debugger;
                     var task_network = JSON.stringify(res.task_network);//将对象变成字符串
                     console.log(task_network);
                     //将任务网络显示出来

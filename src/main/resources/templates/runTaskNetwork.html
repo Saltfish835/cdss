@@ -318,8 +318,10 @@
             }
             if(temp.length == 0) {
                 alert("you must choose a candidate");
+                return;
             } else if(temp.length > 1) {
                 alert("you can only choose a candidate");
+                return;
             } else {
                 decisionResult.candidate_name = temp[0];
             }

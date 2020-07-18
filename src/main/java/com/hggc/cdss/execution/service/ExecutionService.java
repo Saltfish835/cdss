@@ -7,6 +7,7 @@ import com.hggc.cdss.execution.bean.Graph;
 import com.hggc.cdss.execution.bean.NodeStatus;
 import com.hggc.cdss.execution.component.Loader;
 import com.hggc.cdss.execution.mapper.ExecutionMapper;
+import org.apache.commons.jexl2.JexlException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -177,14 +178,20 @@ public class ExecutionService {
             }else {
                 for(Map<String,Object> task :nextTasks) {
                     //这个循环里面应该只有一个task满足条件，因为一次只能执行一个任务
-                    if(this.checkPrecondidation(task) && "dormant".equals(executionMapper.getNodeStatusByNodeId((int)task.get("nodeId")))) {
-                        //如果这个节点的前置条件满足，且这个节点当前状态为休眠，那么这个节点可以被执行
-                        needTORunTaskList.add(task);//将这个节点添加到需要执行的节点的列表中
-                        //将该节点的状态从休眠改成正在进行中
-                        this.updateStatusOfNodeByNodeId((int)task.get("nodeId"),"in_progress");
-                    }else {
-                        //否则该节点就不满足执行条件，将该节点的状态设置为“discard”丢弃
-                        this.updateStatusOfNodeByNodeId((int)task.get("nodeId"),"discard");
+                    try {
+                        if(this.checkPrecondidation(task) && "dormant".equals(executionMapper.getNodeStatusByNodeId((int)task.get("nodeId")))) {//check...可能会抛异常
+                            //如果这个节点的前置条件满足，且这个节点当前状态为休眠，那么这个节点可以被执行
+                            needTORunTaskList.add(task);//将这个节点添加到需要执行的节点的列表中
+                            //将该节点的状态从休眠改成正在进行中
+                            this.updateStatusOfNodeByNodeId((int)task.get("nodeId"),"in_progress");
+                        }else {
+                            //否则该节点就不满足执行条件，将该节点的状态设置为“discard”丢弃
+                            this.updateStatusOfNodeByNodeId((int)task.get("nodeId"),"discard");
+                        }
+                    }catch (JexlException je) {//捕获用户写的条件的异常
+                        errorMap.put("errorCode",500);//500表示后台有错误
+                        errorMap.put("errorMsg",je.getMessage());//错误信息
+                        return errorMap;
                     }
                 }
             }
@@ -196,11 +203,22 @@ public class ExecutionService {
             errorMap.put("errorMsg","不允许多个任务同时执行");//错误信息
             return errorMap;
             //throw new Exception("不允许多个任务同时执行");
-        } else {
+        } else if(needTORunTaskList.size() == 0) {
+            //当前节点后面存在节点，但是后面的节点不满足条件
+            errorMap.put("errorCode",500);//500表示后台有错误
+            errorMap.put("errorMsg","已经没有节点需要执行了");//错误信息
+            return errorMap;
+        }else{
             //如果下一次只有一个任务要执行，还需要判断这个任务的类型
             //因为action、enquiry、plan任务都是直接把任务的数据发送给前端就可以，而decision任务需要做出推荐决策
             if(needTORunTaskList.get(0).get("task_type").equals("decision")) {
-                needTORunTask = getRecommendation(needTORunTaskList.get(0));//得到这个decision任务的推荐结果
+                try{
+                    needTORunTask = getRecommendation(needTORunTaskList.get(0));//得到这个decision任务的推荐结果
+                }catch (JexlException je) {
+                    errorMap.put("errorCode",500);//500表示后台有错误
+                    errorMap.put("errorMsg",je.getMessage());//错误信息
+                    return errorMap;
+                }
             }else {
                 needTORunTask = needTORunTaskList.get(0);
             }
@@ -283,6 +301,7 @@ public class ExecutionService {
             for(Map<String,Object> argument:argumentList) {
                 //得到这个argument的论据
                 String condition = (String)argument.get("condition");
+                System.out.println(condition);
                 //判断这个论据是否为真
                 if((boolean)executeStringAsCodeUtils.executeString(condition,parameter) == true) {//关键所在！！！
                     //说明这个论据是成立的，也就是说这个条论据对这个candidate有支持或者反对作用
@@ -312,7 +331,7 @@ public class ExecutionService {
                     recommendationList.set(j,rearTemp);//set方法会替换掉原来位置的值，而add是添加，后面元素下移
                     recommendationList.set(j+1,frontTemp);
                 } else if((int)rearTemp.get("weight") == (int)frontTemp.get("weight")) {//如果两者的权重相等，则比较则再比较priority
-                    if((int)rearTemp.get("priority") > (int)frontTemp.get("priority")) {
+                    if(Integer.valueOf((String)rearTemp.get("priority")) > Integer.valueOf((String)frontTemp.get("priority"))) {
                         recommendationList.set(j,rearTemp);//set方法会替换掉原来位置的值，而add是添加，后面元素下移
                         recommendationList.set(j+1,frontTemp);
                     }

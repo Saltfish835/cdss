@@ -20,6 +20,7 @@ public class EditController {
     @Autowired
     EditService editService;
 
+
     /**
      * 用户访问首页的方法
      * @return
@@ -68,17 +69,14 @@ public class EditController {
     @RequestMapping("/saveNetworkToDB")
     public @ResponseBody MyMessage saveNetworkToDB(@RequestParam("disease")String disease, @RequestParam("task_network")String task_network){
         MyMessage msg = new MyMessage();
-        System.out.println(disease);
-        System.out.println(task_network);
         try{
             editService.updateNetwork(disease,task_network);
         }catch (Exception indexOut) {
             msg.setCode(500);
             msg.setInfo("一次只能删除一个节点");
             //如果原来的更新出现问题，就把之间的旧值重新赋值回去
-
+            indexOut.printStackTrace();
         }
-
         return msg;
     }
 
@@ -90,8 +88,6 @@ public class EditController {
      */
     @RequestMapping("/getNodeInfoByDiseaseAndId")
     public @ResponseBody Map getNodeInfoByDiseaseAndId(@RequestParam("nodeId")int nodeId,@RequestParam("disease")String disease)throws Exception {
-        System.out.println(nodeId);
-        System.out.println(disease);
         return editService.getNodeInfoByDiseaseAndId(disease,nodeId);
     }
 
@@ -107,9 +103,7 @@ public class EditController {
     @RequestMapping("/updateNodeInfo")
     public @ResponseBody MyMessage updateNodeInfo(@RequestParam("disease") String disease,@RequestParam("nodeId")int nodeId,@RequestParam("newNodeInfo")String newNodeInfo) throws Exception{
         MyMessage msg = new MyMessage();
-        System.out.println(disease);
-        System.out.println(nodeId);
-        System.out.println(newNodeInfo);
+        msg.setInfo(newNodeInfo);
         editService.updateNodeInfo(disease,nodeId,newNodeInfo);
         return msg;
     }

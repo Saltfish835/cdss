@@ -9,6 +9,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,6 @@ public class EditService {
 
     @Autowired
     MongoDBUtils mongoDBUtils;
-
 
     /**
      * 通过疾病名称查询出任务网络
@@ -75,7 +75,8 @@ public class EditService {
 
 
     /**
-     * 如果有的节点在task_table中，而不再任务网络中，则删除该节点，保持任务网络和task_table的一致性
+     * 如果有的节点在task_table中，而不再任务网络中，则在task_table中删除该节点，保持任务网络和task_table的一致性
+     * 如果有的节点在任务网络中，而不再task_table中，则在task_table中添加该节点，保持任务网络和task_table的一致性
      * @param network
      * @param disease
      */
@@ -87,35 +88,99 @@ public class EditService {
             keys.add(node.get("key"));
         }
         System.out.println(keys);
-
         //得到task_table的所有节点
         ObjectMapper objectMapper = new ObjectMapper();
         MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
         MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
+        //从数据库中查出task_table的数据
         FindIterable findIterable = collection.find(Filters.eq("disease_name",disease)).projection(new BasicDBObject("task_table",1));//这个结果还包含id
         MongoCursor cursor = findIterable.iterator();
         Map<String,Object> task_table = new HashMap<String,Object>();
         while (cursor.hasNext()) {
             task_table = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
         }
-        List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");//得到了task_table中所有的节点
-
+        List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");//数据库返回的task_table中所有的数据
         //开始找出要删除的节点
-        List<Integer> needDeleteNode = new ArrayList();
+        List<Integer> needDeleteNodes = new ArrayList();
         for(int i=0;i<taskList.size();i++) {//遍历task_table
-            int nodeId = (int)taskList.get(i).get("nodeId");
+            int nodeId = (int)taskList.get(i).get("nodeId");//拿出task_table中一个节点的id
             if(!keys.contains(nodeId)) {//如果任务网络中不包含这个节点，但是这个节点却又在task_table中，说明该节点要删除
-                needDeleteNode.add(i);//记录要删除的节点
+                needDeleteNodes.add(i);//记录要删除的节点
             }
         }
-
         //将task_table里面需要删除的节点删除
-        for(Integer i : needDeleteNode) {
+        for(Integer i : needDeleteNodes) {
             taskList.remove((int)i);
         }
 
-        //更新数据库
+        //开始找出要添加的节点（在network中，而不在task_table中，最终需要把这种节点添加到task_table中）
+        List taskTableKeys = new ArrayList();
+        for(Map taskTableNode:taskList) {
+            taskTableKeys.add(taskTableNode.get("nodeId"));
+        }
+        System.out.println(taskTableKeys);
+        List<Integer> needAddNodes = new ArrayList<>();//保存需要添加的节点的id
+        for(int i=0;i<keys.size();i++) {
+            int networkNodeId = (int)keys.get(i);//拿出network中一个节点的id
+            if(!taskTableKeys.contains(networkNodeId)) {//如果task_table中不包含这个节点，但是这个黑点却在任务网络中出现，说明该节点要添加到task_table中
+                needAddNodes.add(networkNodeId);//记录要添加节点的id
+            }
+        }
+        for(Map node : nodeDataArray) {//遍历任务网络
+            if(needAddNodes.contains((Integer) node.get("key"))) {//如果这个node的id在needAddNodes中，说明这个node需要被添加到task_table中去
+                Map<String,Object> addNode = new HashMap<>();//准备添加到task_table中去的节点
+                if(((String)node.get("text")).equals("enq")) {//说明要向task_table中添加一个enquiry类型的节点
+                    //封装数据
+                    addNode.put("task_type","enquiry");
+                    addNode.put("nodeId",(int)node.get("key"));
+                    addNode.put("name","");
+                    addNode.put("caption","");
+                    addNode.put("description","");
+                    addNode.put("precondition","");
+                    addNode.put("enquiry_source",new ArrayList<>());
+                    //将节点添加到task_table的一个”代表“中去
+                    taskList.add(addNode);
+                } else if(((String)node.get("text")).equals("dec")) {//说明要向task_table中添加一个decision类型的节点
+                    //封装数据
+                    addNode.put("task_type","decision");
+                    addNode.put("nodeId",(int)node.get("key"));
+                    addNode.put("name","");
+                    addNode.put("caption","");
+                    addNode.put("description","");
+                    addNode.put("precondition","");
+                    addNode.put("candidates",new ArrayList<>());
+                    //将节点添加到task_table的一个”代表“中去
+                    taskList.add(addNode);
+                }else if(((String)node.get("text")).equals("act")) {//说明要向task_table中添加一个action类型的节点
+                    //封装数据
+                    addNode.put("task_type","action");
+                    addNode.put("nodeId",(int)node.get("key"));
+                    addNode.put("name","");
+                    addNode.put("caption","");
+                    addNode.put("description","");
+                    addNode.put("precondition","");
+                    addNode.put("content","");
+                    //将节点添加到task_table的一个”代表“中去
+                    taskList.add(addNode);
+                }else if(((String)node.get("text")).equals("plan")) {//说明要向task_table中添加一个plan类型的节点
+                    //封装数据
+                    addNode.put("task_type","action");
+                    addNode.put("nodeId",(int)node.get("key"));
+                    addNode.put("name","");
+                    addNode.put("caption","");
+                    addNode.put("description","");
+                    addNode.put("precondition","");
+                    addNode.put("content","");
+                    //将节点添加到task_table的一个”代表“中去
+                    taskList.add(addNode);
+                }
+            }
+        }
+
+        //用taskList更新数据库,这样数据库中task_table就和task_network中节点保持一致了
         collection.updateMany(Filters.eq("disease_name",disease),new Document("$set",new Document("task_table",taskList)));
+
+
     }
 
 
@@ -144,7 +209,7 @@ public class EditService {
         MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
         //获取集合，相当于指定表
         MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
-        List<Map<String,Object>> taskList = this.getAllTask(disease);
+        List<Map<String,Object>>taskList = this.getAllTask(disease);
         int sign = 99999;//用于记录用户点击的那个节点存在task_table的哪个位置
         for(int i=0;i<taskList.size();i++) {
             Map node = taskList.get(i);
@@ -164,7 +229,11 @@ public class EditService {
             taskList.add(newNodeInfoMap);
         }
         //再更新到数据库里面去
-        collection.updateMany(Filters.eq("disease_name",disease),new Document("$set",new Document("task_table",taskList)));
+        System.out.println("用于更新task_table的数据");
+        System.out.println(taskList);
+        UpdateResult result = collection.updateMany(Filters.eq("disease_name",disease),new Document("$set",new Document("task_table",taskList)));
+        System.out.println("此次更新修改行数");
+        System.out.println(result.getModifiedCount());
     }
 
 
@@ -211,7 +280,6 @@ public class EditService {
         while (cursor.hasNext()) {
             task_table = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
         }
-        //遍历task_table
         List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");
         return taskList;
     }
