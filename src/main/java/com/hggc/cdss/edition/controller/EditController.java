@@ -42,6 +42,7 @@ public class EditController {
         ModelAndView mv = new ModelAndView();
         //疾病名称是唯一标识
         mv.addObject("disease",disease);
+        mv.addObject("pdfPath","/guidelines/"+disease+"/"+disease+".pdf");
         mv.setViewName("edit");
         return mv;
     }

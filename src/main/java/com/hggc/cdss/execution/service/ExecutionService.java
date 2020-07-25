@@ -343,8 +343,10 @@ public class ExecutionService {
     }
 
 
-
-
+    /**
+     * 保存用户提交的结果
+     * @param decisionResultMap
+     */
     public void saveDecisionResult(Map<String,Object> decisionResultMap) {
         //将结果封装成对象
         DecisionResult decisionResult = new DecisionResult();
@@ -356,6 +358,62 @@ public class ExecutionService {
     }
 
 
+    /**
+     * 得到包含节点状态的任务网络
+     * @param disease
+     * @return
+     * @throws Exception
+     */
+    public Map<String,Object> getNodeStatusAndTaskNetwork(String disease) throws Exception {
+        Map result = new HashMap();
+        //先得到task_network
+        Map<String,Object> taskNetwork = (Map<String,Object>)loader.getGuideline("COVID-19").get("task_network");
+        //先把不重要的数据复制过去
+        result.put("class",taskNetwork.get("class"));
+        result.put("linkFromPortIdProperty",taskNetwork.get("linkFromPortIdProperty"));
+        result.put("linkToPortIdProperty",taskNetwork.get("linkToPortIdProperty"));
+        result.put("modelData",taskNetwork.get("modelData"));
+        result.put("linkDataArray",taskNetwork.get("linkDataArray"));
+        //再得到节点的状态信息
+        List<NodeStatus> nodeStatusList = executionMapper.selectAllFromNodeStatusResult();
+        List<Map<String,Object>> newNodeDataArray = new ArrayList<>();//用户保存更新后的节点信息
+        //得到task_network中各个节点的数据
+        List<Map<String,Object>> nodeDataArray = (List<Map<String,Object>>)taskNetwork.get("nodeDataArray");
+        for(Map<String,Object> nodeData:nodeDataArray) {//遍历nodeDataArray
+            for(NodeStatus nodeStatus:nodeStatusList) {//遍历节点状态
+                if(nodeStatus.getNodeId() == (int)nodeData.get("key")) {//如果节点对应上了
+                    Map<String,Object> newNodeData = new HashMap<>();
+                    //先把不重要的数据复制过去
+                    newNodeData.put("text",nodeData.get("text"));
+                    if(nodeData.get("figure") == null) {
+                        //有的节点没有这个属性
+                    }else {
+                        newNodeData.put("figure",nodeData.get("figure"));
+                    }
+                    newNodeData.put("key",nodeData.get("key"));
+                    newNodeData.put("loc",nodeData.get("loc"));
+                    //颜色很重要，要单独赋值
+                    if(nodeStatus.getNodeStatus().equals("dormant")) {
+                        //该节点在休眠状态
+                        newNodeData.put("fill","gray");//休眠的用灰色
+                    }else if(nodeStatus.getNodeStatus().equals("in_progress")) {
+                        //该节点在执行状态
+                        newNodeData.put("fill","yellow");//休眠的用灰色
+                    }else if(nodeStatus.getNodeStatus().equals("completed")) {
+                        //该节点在完成状态
+                        newNodeData.put("fill","blue");//休眠的用蓝色
+                    }else if(nodeStatus.getNodeStatus().equals("discard")) {
+                        //该节点在丢弃状态
+                        newNodeData.put("fill","black");//休眠的用黑色
+                    }
+                    //将节点保存起来
+                    newNodeDataArray.add(newNodeData);
+                }
+            }
+        }
+        result.put("nodeDataArray",newNodeDataArray);
+        return result;
+    }
 
 
 

@@ -122,4 +122,15 @@ public interface ExecutionMapper {
 
 
 
+
+    @Results(id="nodeStatusResultList",value = {
+            @Result(id=true,column="id",property = "id"),
+            @Result(column = "node_id",property = "nodeId"),
+            @Result(column = "node_name",property = "nodeName"),
+            @Result(column = "node_status",property = "nodeStatus")
+    })
+    @Select("select * from node_status")
+    public List<NodeStatus> selectAllFromNodeStatusResult();
+
+
 }

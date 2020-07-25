@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @SpringBootTest
@@ -39,14 +38,16 @@ class CdssApplicationTests {
 //        System.out.println(secondNode);
 
 
-        String express = "(money >= 100)&&(sex.equals(\"男\"))";
-        Map<String,Object> parameter = new HashMap<>();
-        parameter.put("sex","男");
-        parameter.put("money","1001");
-        parameter.put("age",21);
-        Object result = executeStringAsCodeUtils.executeString(express,parameter);
-        System.out.println(result);
+//        String express = "(money >= 100)&&(sex.equals(\"男\"))";
+//        Map<String,Object> parameter = new HashMap<>();
+//        parameter.put("sex","男");
+//        parameter.put("money","1001");
+//        parameter.put("age",21);
+//        Object result = executeStringAsCodeUtils.executeString(express,parameter);
+//        System.out.println(result);
 
+        Map taskNetwork = loader.getGuideline("COVID-19");
+        System.out.println(taskNetwork.get("task_network"));
 
 
     }

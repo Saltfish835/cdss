@@ -9,7 +9,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.ModelAndView;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,10 +32,14 @@ public class ExecutionController {
      * @return
      */
     @RequestMapping("/runTaskNetwork")
-    public String runTaskNetwork(@RequestParam("diseaseName")String diseaseName) throws Exception{
+    public ModelAndView runTaskNetwork(@RequestParam("diseaseName")String diseaseName) throws Exception{
+        ModelAndView mv = new ModelAndView();
+        mv.addObject("disease",diseaseName);
         //初始化运行环境
         executionService.initEnv(diseaseName);
-        return "runTaskNetwork";
+        mv.setViewName("runTaskNetwork");
+        //return "runTaskNetwork";
+        return mv;
     }
 
 
@@ -102,8 +108,13 @@ public class ExecutionController {
     }
 
 
-
-
+    /**
+     * 用户提交decision任务
+     * @param decisionResult
+     * @param nodeId
+     * @return
+     * @throws Exception
+     */
     @RequestMapping("/submitDecisionTask")
     public @ResponseBody Map<String,Object> submitDecisionTask(@RequestParam("decisionResult") String decisionResult,@RequestParam("currentNodeId") int nodeId) throws Exception{
         System.out.println(decisionResult);
@@ -116,6 +127,22 @@ public class ExecutionController {
         //返回下一个任务
         return executionService.getNextTasks(nodeId);
     }
+
+
+    /**
+     * 得到包含节点状态的任务网络
+     * @param disease
+     * @return
+     * @throws Exception
+     */
+    @RequestMapping("/getNodeStatusAndTaskNetwork")
+    public @ResponseBody Map<String,Object> getNodeStatusAndTaskNetwork(@RequestParam("disease") String disease) throws Exception{
+        Map<String,Object> result = new HashMap<>();
+        result = executionService.getNodeStatusAndTaskNetwork(disease);
+        return result;
+    }
+
+
 
 
 

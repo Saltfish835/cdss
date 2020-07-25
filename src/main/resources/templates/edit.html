@@ -1361,12 +1361,6 @@
                 }
             })
         })(jQuery);
-
-
-
-
-
-
     </script>
     <script th:inline="javascript">
         $(document).ready(function(){
@@ -1775,7 +1769,8 @@
 
         <!--右边-->
         <div class="col-md-4">
-            .col-md-4
+            <!--展示pdf版的临床指南-->
+            <embed th:src="@{(${pdfPath})}" width="100%" height="660px"/>
         </div>
 
     </div>
