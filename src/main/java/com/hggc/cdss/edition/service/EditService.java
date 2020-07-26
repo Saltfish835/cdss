@@ -15,6 +15,9 @@ import org.bson.conversions.Bson;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -179,8 +182,6 @@ public class EditService {
 
         //用taskList更新数据库,这样数据库中task_table就和task_network中节点保持一致了
         collection.updateMany(Filters.eq("disease_name",disease),new Document("$set",new Document("task_table",taskList)));
-
-
     }
 
 
@@ -282,6 +283,99 @@ public class EditService {
         }
         List<Map<String,Object>> taskList = (List<Map<String,Object>>)task_table.get("task_table");
         return taskList;
+    }
+
+
+    /**
+     * 根据用户名称获得整个指南，除去_id字段
+     * @param diseaseName
+     * @return
+     * @throws Exception
+     */
+    public Map<String,Object> getGuidelineByDiseaseName(String diseaseName)throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
+        MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
+        BasicDBObject query = new BasicDBObject();
+        query.put("disease_name",diseaseName);
+        FindIterable findIterable = collection.find(query).projection(new BasicDBObject("_id",0));//不要数据库中id的那一个字段
+        MongoCursor cursor = findIterable.iterator();
+        Map<String,Object> guideline = new HashMap<String,Object>();
+        while (cursor.hasNext()) {
+            guideline = objectMapper.readValue(objectMapper.writeValueAsString(cursor.next()), Map.class);//将查出的结果封装成map集合
+        }
+        return guideline;
+    }
+
+
+    /**
+     * 删除签名文件的方法
+     * @param disease
+     */
+    public void deleteFiles(String disease) {
+        //先把原来的文件删除掉
+        File f1 = new File(disease+"_guideline.txt");//删除指南
+        if (f1.exists()) {
+            f1.delete();
+        }
+        File f2 = new File("myprikey.txt");//删除私钥
+        if(f2.exists()) {
+            f2.delete();
+        }
+        File f3 = new File("mypubkey.txt");//删除私钥
+        if(f3.exists()) {
+            f3.delete();
+        }
+        File f4 = new File("mysign.txt");//删除私钥
+        if(f4.exists()) {
+            f4.delete();
+        }
+        File f5 = new File("publishFile.zip");//删除压缩包
+        if(f5.exists()) {
+            f5.delete();
+        }
+    }
+
+
+    /**
+     * 通过文件名获取文件内容
+     * @param strFile
+     * @return
+     */
+    public String readFile(String strFile){
+        String fileContent = "";
+        try{
+            InputStream is = new FileInputStream(strFile);
+            int iAvail = is.available();
+            byte[] bytes = new byte[iAvail];
+            is.read(bytes);
+            //logger.info("文件内容:\n" + new String(bytes));
+            fileContent = new String(bytes);
+            is.close();
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return fileContent;
+    }
+
+
+    /**
+     * 用上传过来的指南跟新数据库
+     * @param disease
+     * @param uploadGuideline
+     */
+    public void updateDBByUploadGuideline(String disease,String uploadGuideline)throws Exception {
+        System.out.println(uploadGuideline);
+        ObjectMapper objectMapper = new ObjectMapper();
+        //先将上传的文件内容变成map集合
+        Map<String,Object> uploadGuidelineMap = objectMapper.readValue(uploadGuideline,Map.class);
+        //得到mongodb的连接
+        MongoDatabase mongoDatabase = mongoDBUtils.getConnect();
+        //获取集合，相当于指定表
+        MongoCollection<Document> collection = mongoDatabase.getCollection("guidelines");
+        //更新文档
+        collection.updateMany(Filters.eq("disease_name", disease), new Document("$set",new Document("task_network",uploadGuidelineMap.get("task_network"))));
+        collection.updateMany(Filters.eq("disease_name", disease), new Document("$set",new Document("task_table",uploadGuidelineMap.get("task_table"))));
     }
 
 
