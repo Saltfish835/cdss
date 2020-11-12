@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>临床决策支持系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
+    <style>
+        /*文字超过三行显示...*/
+        p{
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            overflow: hidden;
+        }
+    </style>
+    <script>
+        $(document).ready(function(){
+            $("#caseLibraryBox").show();
+            $("#caseDetailBox").hide();
+
+
+            //从病例详细信息页返回到病例列表
+            $("#returnLink").click(function () {
+                $("#caseLibraryBox").show();
+                $("#caseDetailBox").hide();
+            });
+
+
+
+
+        });
+    </script>
+    <script>
+        function showCaseDetail(event) {
+            debugger;
+            //因为参数不好传递，只好通过event对象来获取所需数据
+            event = event||window.event;//获取到这个函数的触发事件
+            console.log(event);
+            var caseId = event.currentTarget.childNodes[0].innerText;//为了拿到id也是不择手段
+            //先把原有数据清空
+            clearcaseDetailBox();
+            //用该case_id查出该案例的详细信息
+            $.ajax({
+                url:"/cdss/getCaseByCaseId",
+                data:{"caseId":caseId},
+                dataType:"json",
+                type:"POST",
+                success:function (res) {
+                    debugger;
+                    console.log(res);
+                    //将详细信息显示出来
+                    $("#patient_information").text("性别："+res.patient_information.gender+","+res.patient_information.age+"岁");
+                    $("#disease").text(res.disease);
+                    var symptomStr = "";
+                    for(var i=0;i<res.symptom.length;i++) {
+                        symptomStr+=res.symptom[i];
+                        symptomStr+=","
+                    }
+                    symptomStr = symptomStr.substring(0,symptomStr.length-1);
+                    $("#symptom").text(symptomStr);
+                    $("#clinical_history").text(res.clinical_history);
+                    $("#medical_examination").text(res.medical_examination);
+                    $("#therapeutic_schedule").text(res.therapeutic_schedule);
+                    $("#experience").text(res.experience);
+                    //显示图片
+                    var imageList = res.images;
+                    for(var i=0;i<imageList.length;i++) {
+                        var head = "<div style='float: left'>";
+                        var imgContent = "<img src='/cdss/getImg?addr="+imageList[i].path+"'/>";
+                        var imgTitle = "<p>"+imageList[i].title+"</p>";
+                        var foot = "</div>";
+                        $("#imgBox").append(head+imgContent+imgTitle+foot);
+                    }
+                    $("#caseLibraryBox").hide();
+                    $("#caseDetailBox").show();
+                }
+            });
+        }
+
+
+        /**
+         * 清空病例细节显示的区域
+         */
+        function clearcaseDetailBox() {
+            $("#patient_information").text("");
+            $("#disease").text("");
+            $("#symptom").text("");
+            $("#clinical_history").text("");
+            $("#medical_examination").text("");
+            $("#therapeutic_schedule").text("");
+            $("#experience").text("");
+            $("#imgBox").empty();
+        }
+
+
+        /**
+         * 用户点击range下的add按钮，将输入的值添加到rangeList中
+         */
+        function addValueTosymptomList() {
+            //首先取到range输入框中的值
+            var symptomValue = $("#exampleInputName5").val();
+            if(symptomValue == "" || symptomValue == null) {
+                return;//如果range中没有值，点按钮也就没有反映
+            }else {
+                //range中的值不为空，则将里面的值添加到rangList中
+                var option=$("<option></option>").text(symptomValue);//创建元素
+                $("#symptomList").append(option);
+                //将range里面的值清空
+                $("#exampleInputName5").val("");
+            }
+        }
+
+
+        /**
+         * 用户点击range下的remove按钮，将值从rangeList中移除
+         */
+        function removeValueFromsymptomList() {
+            //首先取到rangeList中的值
+            var symptomListValue = $("#symptomList").val();
+            if(symptomListValue == "" || symptomListValue == null) {
+                return;//没有选择要移除的值，点按钮也没有反应
+            }else {
+                //移除被选中的值
+                $("#symptomList").find("option:selected").remove();
+            }
+        }
+
+
+        /**
+         * 清空模态框所有数据
+         */
+        function emptyModal() {
+            $("#exampleInputName2").val("");
+            $("#exampleInputName3").val("");
+            $("#exampleInputName5").val("");
+            $("#symptomList").empty();
+            $("#exampleInputName4").val("");
+            $("#exampleInputName6").val("");
+            $("#exampleInputName7").val("");
+            $("#exampleInputName8").val("");
+            $("#exampleInputFile").empty();
+        }
+
+        /**
+         * 点取消关闭模态框
+         * 用户点击模态框的取消按钮，什么都不做，直接关闭
+         */
+        function cancelMyModal() {
+            //清空所有的值
+            emptyModal();
+            $('#myModal').modal('hide');
+        }
+
+
+        /**
+         * 点击提交模态框
+         * 封装数据，然后提交到后台，最后清空数据并关闭模态框
+         */
+        function submitMyModal() {
+            debugger;
+            //封装数据
+            var patientCase = {};
+            var patientInformation = {};
+            patientInformation.gender = $("#exampleInputName2").val();
+            patientInformation.age = $("#exampleInputName3").val();
+            patientCase.patient_information = patientInformation;
+            patientCase.disease = $("#exampleInputName9").val();
+            var symptomList = "";
+            //遍历rangeList，取出里面的选项
+            $("#symptomList option").each(
+                function (index) {
+                    //rangeList.push(this.value);
+                    symptomList += (this.value).toString()+","
+                }
+            );
+            //去掉rangeList最后一个逗号
+            symptomList = symptomList.substring(0,symptomList.length-1);
+
+        }
+
+
+
+    </script>
+</head>
+<body>
+<!--导航栏部分开始-->
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="row" style="height:113px">
+            <div class="navbar-header col-md-4 col-md-offset-2">
+                <div class="header-left clearfix" style="margin-top:25px">
+                    <!-- logo -->
+                    <div class="logo smooth-scroll" style="float:left;wight:74px">
+                        <a href="#banner"><img id="logo" src="/images/logo_1.png" alt="Worthy"></a>
+                    </div>
+                    <!-- name-and-slogan -->
+                    <div class="site-name-and-slogan smooth-scroll" style="margin-top:15px">
+                        <div class="site-name"><a href="#banner">GMES</a></div>
+                        <div class="site-slogan"><a target="_blank" href="http://htmlcoder.me">Goal Management & Enactment System</a></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse col-md-6" id="bs-example-navbar-collapse-1" style="margin-top: 30px">
+                <ul class="nav navbar-nav">
+                    <li><a href="#">Home</a></li>
+                    <li><a href="#">Decision</a></li>
+                    <li><a href="#">Guidelines</a></li>
+                    <li><a href="#">Knowledge</a></li>
+                    <li class="active"><a href="/cdss/jumpToCaseLibrary" target="_blank">Case Library <span class="sr-only">(current)</span></a></li>
+                    <li><a href="#">Login</a></li>
+                </ul>
+            </div><!-- /.navbar-collapse -->
+        </div>
+    </div><!-- /.container-fluid -->
+</nav>
+<!--导航栏部分结束-->
+
+
+<div class="container">
+    <!--顶部搜索框-->
+    <div class="page-header">
+        <div class="row">
+            <div class="col-lg-2">
+                <button class="btn btn-primary" data-toggle="modal" data-target="#myModal">add case</button><!--弹出模态框，添加病例-->
+            </div>
+            <div class="col-lg-6 col-lg-offset-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Search for...">
+                    <span class="input-group-btn">
+                    <button class="btn btn-default" type="button">Go!</button>
+                  </span>
+                </div><!-- /input-group -->
+            </div><!-- /.col-lg-6 -->
+        </div><!-- /.row -->
+    </div>
+
+    <!--病例库显示-->
+    <div id="caseLibraryBox">
+        <div th:if="${caseList.size()==0}"><!--病例库为空-->
+            <p>病例库为空，请添加病例</p>
+        </div>
+        <div th:if="${caseList.size()>0}"><!--病例库不为空-->
+            <div class="media" th:each="patientCase:${caseList}">
+                <div class="media-left media-middle" th:each="image,itemStat:${patientCase.get('images')}" th:if="${itemStat.count<=1}" style="height: 90px;width: 20%">
+                    <a>
+                        <img class="media-object" th:src="@{(${image.path})}" style="height: 100%;width: 100%">
+                    </a>
+                </div>
+                <div class="media-body" style="height: 90px;width: 80%">
+                    <a onclick="showCaseDetail()"><span th:text="${patientCase.get('case_id')}" style="display: none"></span><!--为了取到id，没有办法-->
+                        <h4 class="media-heading"  th:text="${'患者性别'+patientCase.get('patient_information').gender+','+patientCase.get('patient_information').age+'岁,被诊断为：'+patientCase.get('disease')}"></h4>
+                    </a>
+                    <p th:text="${patientCase.get('medical_examination')}"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--病例详细信息显示-->
+    <div id="caseDetailBox">
+        <a id="returnLink"><span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span>返回</a><br/>
+        <dl class="dl-horizontal">
+            <dt>patient information</dt>
+            <dd id="patient_information"></dd>
+            <br/>
+            <dt>disease</dt>
+            <dd id="disease"></dd>
+            <br/>
+            <dt>symptom</dt>
+            <dd id="symptom"></dd>
+            <br/>
+            <dt>clinical history</dt>
+            <dd id="clinical_history"></dd>
+            <br/>
+            <dt>medical examination</dt>
+            <dd id="medical_examination"></dd>
+            <br/>
+            <dt>therapeutic schedule</dt>
+            <dd id="therapeutic_schedule"></dd>
+            <br/>
+            <dt>experience</dt>
+            <dd id="experience"></dd>
+            <br/>
+            <div id="imgBox">
+
+            </div>
+        </dl>
+    </div>
+
+</div>
+
+
+
+<!-- 模态框（Modal） -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="myModalLabel">add case</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal">
+                    <div class="form-group">
+                        <label for="exampleInputName2" class="col-sm-2 control-label">gender</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName2">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName3" class="col-sm-2 control-label">age</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName3">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName9" class="col-sm-2 control-label">disease</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName9">
+                        </div>
+                    </div>
+                    <div class="form-group" id="symptomBox">
+                        <label for="exampleInputName5" class="col-sm-2 control-label">symptom</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control" id="exampleInputName5">
+                            <button type="button" class="btn btn-primary btn-xs" onclick="addValueTosymptomList()">add</button>
+                            <button type="button" class="btn btn-primary btn-xs" onclick="removeValueFromsymptomList()">remove</button>
+                            <select multiple class="form-control" id="symptomList">
+
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName4" class="col-sm-2 control-label">clinical history</label>
+                        <div class="col-sm-10">
+                            <textarea class="form-control" rows="3" id="exampleInputName4"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName6" class="col-sm-2 control-label">medical examination</label>
+                        <div class="col-sm-10">
+                            <textarea class="form-control" rows="3" id="exampleInputName6"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName7" class="col-sm-2 control-label">therapeutic schedule</label>
+                        <div class="col-sm-10">
+                            <textarea class="form-control" rows="3" id="exampleInputName7"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputName8" class="col-sm-2 control-label">experience</label>
+                        <div class="col-sm-10">
+                            <textarea class="form-control" rows="3" id="exampleInputName8"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputFile" class="col-sm-2 control-label">images</label>
+                        <input type="file" id="exampleInputFile">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" onclick="cancelMyModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitMyModal()">提交</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+</body>
+</html>

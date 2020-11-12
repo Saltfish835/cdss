@@ -2,6 +2,7 @@ package com.hggc.cdss;
 
 import com.hggc.cdss.Utils.DSATool;
 import com.hggc.cdss.Utils.ExecuteStringAsCodeUtils;
+import com.hggc.cdss.caseLibrary.service.CaseLibraryService;
 import com.hggc.cdss.edition.service.EditService;
 import com.hggc.cdss.execution.component.Loader;
 import com.hggc.cdss.execution.service.ExecutionService;
@@ -26,6 +27,9 @@ class CdssApplicationTests {
 
     @Autowired
     EditService editService;
+
+    @Autowired
+    CaseLibraryService caseLibraryService;
 
 
     @Test
@@ -83,5 +87,14 @@ class CdssApplicationTests {
         writer.write(guidelines.toString());
         writer.flush();
         writer.close();
+    }
+
+    @Test
+    void testGetAllCase() throws Exception{
+        System.out.println(caseLibraryService.getAllCase());
+    }
+
+    void testGetImg() {
+
     }
 }

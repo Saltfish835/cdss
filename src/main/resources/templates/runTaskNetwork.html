@@ -9,6 +9,15 @@
     <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
     <script src="/gojs/go.js"></script>
+    <style>
+        /*文字超过三行显示...*/
+        #hideWord {
+            width:600px;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+    </style>
     <!--go.js的内容-->
     <script id="code">
         function init() {
@@ -405,8 +414,10 @@
                         result.select_model = "single";//单选框就是单选
                         result.node_id = currentTask.nodeId;//通过全局变量来知道该问题属于哪一个任务节点
                     } else if(inputItem.getAttribute("type") == "text") {//当这个输入框是input
+                        debugger;
                         result.source_name = inputItem.getAttribute("id");
-                        result.result += inputItem.getAttribute("value");
+                        //result.result += inputItem.getAttribute("value");
+                        result.result += inputItem.value;
                         result.select_model = "single";//单选框就是单选
                         result.node_id = currentTask.nodeId;//通过全局变量来知道该问题属于哪一个任务节点
                     } else if(inputItem.getAttribute("type") == "checkbox" && inputItem.checked == true) {//多选框
@@ -543,9 +554,9 @@
                     for(var j=0;j<recommendBasisList.length;j++) {
                         var recommendBasis = recommendBasisList[j];
                         body += "<blockquote>";
-                        body += "<h4>caption:"+recommendBasis.caption+"</h4>";
-                        body += "<h4>condition:"+recommendBasis.condition+"</h4>";
-                        body += "<h4>support:"+recommendBasis.support+"</h4>";
+                        body += "<h4><span class='glyphicon glyphicon-triangle-right' aria-hidden='true' style='color: #1b6d85'></span>"+recommendBasis.caption+"</h4>";
+                        body += "<h5><div id='hideWord' title='"+recommendBasis.condition+"'><strong>condition:</strong>"+recommendBasis.condition+"</div></h5>";
+                        body += "<h5><strong>weight:</strong>"+recommendBasis.support+"</h5>";
                         body += "</blockquote>";
                     }
                     $("#taskContent").append(head+title+body+foot);
@@ -558,9 +569,9 @@
                     for(var j=0;j<recommendBasisList.length;j++) {
                         var recommendBasis = recommendBasisList[j];
                         body += "<blockquote>";
-                        body += "<h4>caption: "+recommendBasis.caption+"</h4>";
-                        body += "<h5>condition: "+recommendBasis.condition+"</h5>";
-                        body += "<h5>support: "+recommendBasis.support+"</h5>";
+                        body += "<h4><span class='glyphicon glyphicon-triangle-right' aria-hidden='true' style='color: #1b6d85'></span>"+recommendBasis.caption+"</h4>";
+                        body += "<h5><div id='hideWord' title='"+recommendBasis.condition+"'><strong>condition:</strong>"+recommendBasis.condition+"</div></h5>";
+                        body += "<h5><strong>weight:</strong> "+recommendBasis.support+"</h5>";
                         body += "</blockquote>";
                     }
                     $("#taskContent").append(head+title+body+foot);
@@ -691,43 +702,9 @@
     </script>
 </head>
 <body onload="init()">
-<!--导航栏部分开始-->
-<nav class="navbar navbar-default">
-    <div class="container-fluid">
-        <!-- Brand and toggle get grouped for better mobile display -->
-        <div class="row" style="height:113px">
-            <div class="navbar-header col-md-4 col-md-offset-2">
-                <div class="header-left clearfix" style="margin-top:25px">
-                    <!-- logo -->
-                    <div class="logo smooth-scroll" style="float:left;wight:74px">
-                        <a href="#banner"><img id="logo" src="/images/logo_1.png" alt="Worthy"></a>
-                    </div>
-                    <!-- name-and-slogan -->
-                    <div class="site-name-and-slogan smooth-scroll" style="margin-top:15px">
-                        <div class="site-name"><a href="#banner">GMES</a></div>
-                        <div class="site-slogan"><a target="_blank" href="http://htmlcoder.me">Goal Management & Enactment System</a></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Collect the nav links, forms, and other content for toggling -->
-            <div class="collapse navbar-collapse col-md-6" id="bs-example-navbar-collapse-1" style="margin-top: 30px">
-                <ul class="nav navbar-nav">
-                    <li class="active"><a href="#">Home <span class="sr-only">(current)</span></a></li>
-                    <li><a href="#">Decision</a></li>
-                    <li><a href="#">Guidelines</a></li>
-                    <li><a href="#">Knowledge</a></li>
-                    <li><a href="#">Reference</a></li>
-                    <li><a href="#">Login</a></li>
-                </ul>
-            </div><!-- /.navbar-collapse -->
-        </div>
-    </div><!-- /.container-fluid -->
-</nav>
-<!--导航栏部分结束-->
-<div class="space"></div>
-<div class="space"></div>
-<div class="space"></div>
+<div class="page-header">
+    <h1>指南执行<small th:text="${disease}"></small></h1>
+</div>
 <div class="container-fluid">
     <h1 id="services" style="display: none;" class="text-center title" th:text="${disease}"></h1><!--不显示出来，只是用来保存疾病名称的-->
     <div class="row">

@@ -9,6 +9,15 @@
     <script src="https://cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"></script>
     <script src="/gojs/go.js"></script>
+    <style>
+        /*文字超过三行显示...*/
+        #hideWord {
+            width:180px;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+    </style>
     <script id="code">
         function init() {
             if (window.goSamples) goSamples();  // init for these samples -- you don't need to call this
@@ -408,7 +417,7 @@
                             var enquirySources = res.enquiry_source;
                             for(var i=0;i<enquirySources.length;i++) {
                                 var source = enquirySources[i];//得到每一个源
-                                var row = "<tr><td><input type='checkbox' id='enqCheckBox' value="+source.name+"></td><td>"+source.name+"</td><td>"+source.caption+"</td><td>"+source.data_type+"</td><td>"+source.range+"</td><td>"+source.default_value+"</td><td>"+source.select_model+"</td></tr>";
+                                var row = "<tr><td><input type='checkbox' id='enqCheckBox' value="+source.name+"></td><td>"+source.name+"</td><td>"+source.caption+"</td><td>"+source.data_type+"</td><td><div id='hideWord' title='"+source.range+"'>"+source.range+"</div></td><td>"+source.default_value+"</td><td>"+source.select_model+"</td></tr>";
                                 $("#enquiryDataSource").append(row);
                             }
                         }
@@ -493,7 +502,7 @@
                                 var arguments = candidate.arguments;
                                 for(var j=0;j<arguments.length;j++) {
                                     var argument = arguments[j];
-                                    main += "<tr><td>"+argument.name+"</td><td>"+argument.caption+"</td><td>"+argument.condition+"</td><td>"+argument.support+"</td>"
+                                    main += "<tr><td>"+argument.name+"</td><td>"+argument.caption+"</td><td><div id='hideWord' title='"+argument.condition+"'>"+argument.condition+"</div></td><td>"+argument.support+"</td>"
                                                 +"<td><a onclick='deleteArgument()'><span class='glyphicon glyphicon-minus' aria-hidden='true'></span></a></td></tr>";
                                 }
                                 var tail = "</tbody></table></div>";
@@ -1475,11 +1484,11 @@
             <!-- Collect the nav links, forms, and other content for toggling -->
             <div class="collapse navbar-collapse col-md-6" id="bs-example-navbar-collapse-1" style="margin-top: 30px">
                 <ul class="nav navbar-nav">
-                    <li class="active"><a href="#">Home <span class="sr-only">(current)</span></a></li>
+                    <li ><a href="#">Home</a></li>
                     <li><a href="#">Decision</a></li>
-                    <li><a href="#">Guidelines</a></li>
+                    <li class="active"><a href="#">Guidelines <span class="sr-only">(current)</span></a></li>
                     <li><a href="#">Knowledge</a></li>
-                    <li><a href="#">Reference</a></li>
+                    <li><a href="/cdss/jumpToCaseLibrary" target="_blank">Case Library</a></li>
                     <li><a href="#">Login</a></li>
                 </ul>
             </div><!-- /.navbar-collapse -->

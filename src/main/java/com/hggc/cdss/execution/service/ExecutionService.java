@@ -357,7 +357,6 @@ public class ExecutionService {
         executionMapper.addDataToDecisionResult(decisionResult);
     }
 
-
     /**
      * 得到包含节点状态的任务网络
      * @param disease
