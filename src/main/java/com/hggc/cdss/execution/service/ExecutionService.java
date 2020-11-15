@@ -1,6 +1,7 @@
 package com.hggc.cdss.execution.service;
 
 import com.hggc.cdss.Utils.ExecuteStringAsCodeUtils;
+import com.hggc.cdss.edition.service.EditService;
 import com.hggc.cdss.execution.bean.DecisionResult;
 import com.hggc.cdss.execution.bean.EnquiryResult;
 import com.hggc.cdss.execution.bean.Graph;
@@ -32,7 +33,12 @@ public class ExecutionService {
     @Autowired
     ExecuteStringAsCodeUtils executeStringAsCodeUtils;
 
+    @Autowired
+    EditService editService;
+
     private Graph graph = null;
+
+    private String diseaseName = null;
 
     public Graph getGraph() {
         return this.graph;
@@ -43,6 +49,7 @@ public class ExecutionService {
      *
      */
     public void initEnv(String diseaseName) throws Exception{
+        this.diseaseName = diseaseName;//将疾病名称保存起来备用
         Map guideline = loader.getGuideline(diseaseName);//先获得整个指南
         //从指南中获得所有节点,也就是任务网络中的节点
         List<Map<String,Object>> taskList = (List<Map<String,Object>>)guideline.get("task_table");
@@ -233,16 +240,36 @@ public class ExecutionService {
      * @param node
      * @return
      */
-    public boolean checkPrecondidation(Map<String,Object> node) {
+    public boolean checkPrecondidation(Map<String,Object> node) throws Exception {
         boolean flag = false;
         String precondition = (String)node.get("precondition");
         if(precondition.equals("")) {//如果前置条件为空，则肯定满足
             flag = true;
         }else {//如果不为空，则需要进一步判断
-            //先得到所有的问题的答案
-            List<EnquiryResult> enquiryResultList = executionMapper.selectAllFromEnquiryResult();
             //封装成map集合,做参数用
             Map<String,Object> parameter = new HashMap<>();
+            //首先把所有的decision和enquiry填充到parameter中去，值为默认
+            List<Map<String,Object>> enquiryAndDecisionTaskList = editService.getEnquiryAndDecision(this.diseaseName);//得到所有的enquiry和decision节点
+            for(Map<String,Object> task : enquiryAndDecisionTaskList) {
+                if("enquiry".equals((String)task.get("task_type"))) {//当前节点是enquiry类型
+                    List<Map<String,Object>> enquirySourceList = (List<Map<String,Object>>)task.get("enquiry_source");//得到该节点中所有的问题
+                    for(Map<String,Object> enquirySource : enquirySourceList) {//得到具体问题
+                        if("text".equals(enquirySource.get("data_type"))) {//问题是text类型
+                            parameter.put((String)enquirySource.get("name"),"");//text类型的默认值为“”
+                        }else if("boolean".equals(enquirySource.get("data_type"))) {//问题是boolean类型
+                            parameter.put((String)enquirySource.get("name"),"no");//boolean类型的默认值为no
+                        }else {//剩下的就是数值类型
+                            parameter.put((String)enquirySource.get("name"),0);
+                        }
+                    }
+                }else if("decision".equals((String)task.get("task_type"))) {//当前节点是decision类型
+                    parameter.put((String)task.get("name"),"");//任务名为空
+                }
+            }
+            //将所有的enquiry和decision都放入了用于判断前置条件，如果用户回答的这些问题，数据库中将会有对应的记录，用户回答的值也会覆盖上面的默认值
+
+            //先得到所有的问题的答案
+            List<EnquiryResult> enquiryResultList = executionMapper.selectAllFromEnquiryResult();
             for(EnquiryResult enquiryResult:enquiryResultList) {
                 parameter.put(enquiryResult.getSourceName(),enquiryResult.getResult());
             }
@@ -261,6 +288,7 @@ public class ExecutionService {
         }
         return flag;
     }
+
 
 
     /**

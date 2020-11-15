@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.FileWriter;
+import java.util.List;
 import java.util.Map;
 
 @SpringBootTest
@@ -94,7 +95,16 @@ class CdssApplicationTests {
         System.out.println(caseLibraryService.getAllCase());
     }
 
-    void testGetImg() {
+    @Test
+    void testGetAllTask() throws  Exception{
+        List<Map<String,Object>> enquiryAndDeciosnTaskList = editService.getEnquiryAndDecision("COVID-19");
+        for(Map<String,Object> task : enquiryAndDeciosnTaskList) {
 
+        }
+
+
+
+
+        System.out.println(enquiryAndDeciosnTaskList);
     }
 }
